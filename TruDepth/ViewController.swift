@@ -36,25 +36,31 @@ class ViewController: UIViewController, ARSessionDelegate {
         
         let attributes: [NSAttributedString.Key: Any] = [
             .font: UIFont.systemFont(ofSize: 12),
-            .foregroundColor: UIColor.red
+            .foregroundColor: UIColor.red,
+            .strokeWidth: -1.0,
+            .strokeColor: UIColor.white
         ]
         
         guard let context = UIGraphicsGetCurrentContext() else { return nil }
         
-        context.setFillColor(UIColor.green.cgColor)
+        context.setFillColor(UIColor.cyan.cgColor) // Vibrant color
+        context.setStrokeColor(UIColor.black.cgColor) // Border color
+        context.setLineWidth(2.0) // Border width
+        
         let pointSize: CGFloat = 6.0
         
         let gridDimensions = 3
         for i in 0..<depthValues.count {
             let row = i / gridDimensions
             let col = i % gridDimensions
-            let squareWidth = image.size.width / CGFloat(gridDimensions + 1) // added 1 to the denominator
-            let squareHeight = image.size.height / CGFloat(gridDimensions + 1) // added 1 to the denominator
+            let squareWidth = image.size.width / CGFloat(gridDimensions + 1)
+            let squareHeight = image.size.height / CGFloat(gridDimensions + 1)
             let x = (CGFloat(col) + 1) * squareWidth
             let y = (CGFloat(row) + 1) * squareHeight
             let point = CGRect(x: x - pointSize / 2, y: y - pointSize / 2, width: pointSize, height: pointSize)
             
             context.fillEllipse(in: point)
+            context.strokeEllipse(in: point) // Draw the border
             
             let depthInMeters = depthValues[i]
             let depthString = String(format: "%.2f m", depthInMeters)
@@ -68,6 +74,7 @@ class ViewController: UIViewController, ARSessionDelegate {
         
         return newImage
     }
+
 
     func depthDataToUIImage(from depthData: ARDepthData) -> UIImage? {
         let depthMap: CVPixelBuffer = depthData.depthMap
