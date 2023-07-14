@@ -19,13 +19,56 @@ class ViewController: UIViewController, ARSessionDelegate {
     func session(_ session: ARSession, didUpdate frame: ARFrame) {
         guard let depthData = frame.sceneDepth else { return }
         
-        if let depthImage = depthDataToUIImage(from: depthData) {
+        let depthValues = depthValuesForNinePoints(from: depthData.depthMap)
+        
+        if let depthImage = depthDataToUIImage(from: depthData),
+           let markedImage = drawPointsAndDistances(on: depthImage, depthValues: depthValues) {
             DispatchQueue.main.async {
-                self.imageView.image = depthImage
+                self.imageView.image = markedImage
             }
         }
     }
     
+    func drawPointsAndDistances(on image: UIImage, depthValues: [Float]) -> UIImage? {
+        UIGraphicsBeginImageContext(image.size)
+        
+        image.draw(at: .zero)
+        
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: 12),
+            .foregroundColor: UIColor.red
+        ]
+        
+        guard let context = UIGraphicsGetCurrentContext() else { return nil }
+        
+        context.setFillColor(UIColor.green.cgColor)
+        let pointSize: CGFloat = 6.0
+        
+        let gridDimensions = 3
+        for i in 0..<depthValues.count {
+            let row = i / gridDimensions
+            let col = i % gridDimensions
+            let squareWidth = image.size.width / CGFloat(gridDimensions + 1) // added 1 to the denominator
+            let squareHeight = image.size.height / CGFloat(gridDimensions + 1) // added 1 to the denominator
+            let x = (CGFloat(col) + 1) * squareWidth
+            let y = (CGFloat(row) + 1) * squareHeight
+            let point = CGRect(x: x - pointSize / 2, y: y - pointSize / 2, width: pointSize, height: pointSize)
+            
+            context.fillEllipse(in: point)
+            
+            let depthInMeters = depthValues[i]
+            let depthString = String(format: "%.2f m", depthInMeters)
+            let textPoint = CGPoint(x: x, y: y - pointSize / 2 - 20)
+            depthString.draw(at: textPoint, withAttributes: attributes)
+        }
+        
+        let newImage = UIGraphicsGetImageFromCurrentImageContext()
+        
+        UIGraphicsEndImageContext()
+        
+        return newImage
+    }
+
     func depthDataToUIImage(from depthData: ARDepthData) -> UIImage? {
         let depthMap: CVPixelBuffer = depthData.depthMap
         var ciImage = CIImage(cvPixelBuffer: depthMap)
@@ -48,6 +91,38 @@ class ViewController: UIViewController, ARSessionDelegate {
         return UIImage(cgImage: cgImage, scale: 1.0, orientation: .right)
     }
 
+    func depthValuesForNinePoints(from depthMap: CVPixelBuffer) -> [Float] {
+        // Lock the base address of the pixel buffer
+        CVPixelBufferLockBaseAddress(depthMap, CVPixelBufferLockFlags(rawValue: 0))
+        
+        // Get the width and height of the buffer
+        let width = CVPixelBufferGetWidth(depthMap)
+        let height = CVPixelBufferGetHeight(depthMap)
+
+        // Determine the dimensions of the squares
+        let squareWidth = width / 4
+        let squareHeight = height / 4
+
+        // Create an array to store the depth values
+        var depthValues: [Float] = []
+        
+        // Get the pointer to the pixel values
+        let floatBuffer = unsafeBitCast(CVPixelBufferGetBaseAddress(depthMap), to: UnsafeMutablePointer<Float>.self)
+        
+        // Get the depth values for the 9 points
+        for y in 1...3 {
+            for x in 1...3 {
+                let pixelPosition = ((y * squareHeight) * width) + (x * squareWidth)
+                let depthValue = floatBuffer[pixelPosition]
+                depthValues.append(depthValue)
+            }
+        }
+        
+        // Unlock the base address of the pixel buffer
+        CVPixelBufferUnlockBaseAddress(depthMap, CVPixelBufferLockFlags(rawValue: 0))
+
+        return depthValues
+    }
     
     func cropToCenter(image: CIImage, size: CGSize) -> CIImage {
         let originX = (image.extent.size.width - size.width) / 2
