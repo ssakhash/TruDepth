@@ -1,22 +1,30 @@
 import UIKit
 import ARKit
 
-class ViewController: UIViewController, ARSessionDelegate {
+class ViewController: UIViewController {
     
     @IBOutlet weak var imageView: UIImageView!
 
     let session = ARSession()
+    var depthDataTimer: Timer?
     
     override func viewDidLoad() {
         super.viewDidLoad()
         let configuration = ARWorldTrackingConfiguration()
         configuration.frameSemantics.insert(.sceneDepth)
-        session.delegate = self
         session.run(configuration)
+        
+        // Call processCurrentDepthData() every 2 seconds
+        depthDataTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+            self?.processCurrentDepthData()
+        }
     }
     
-    func session(_ session: ARSession, didUpdate frame: ARFrame) {
-        guard let depthData = frame.sceneDepth else { return }
+    func processCurrentDepthData() {
+        guard let frame = session.currentFrame, let depthData = frame.sceneDepth else {
+            print("Could not get current depth data")
+            return
+        }
         
         let depthValues = depthValuesForPoints(from: depthData.depthMap)
         
@@ -77,7 +85,7 @@ class ViewController: UIViewController, ARSessionDelegate {
         var ciImage = CIImage(cvPixelBuffer: depthMap)
         
         // adjustment for the intensity scale
-        let maxDepth: CGFloat = 5.0 // maximum depth to be considered
+        let maxDepth: CGFloat = 3.0 // maximum depth to be considered
         ciImage = ciImage.applyingFilter("CIColorControls", parameters: ["inputBrightness": 0, "inputContrast": 1, "inputSaturation": 0])
         ciImage = ciImage.applyingFilter("CILinearToSRGBToneCurve")
         ciImage = ciImage.applyingFilter("CIColorMatrix", parameters: [
