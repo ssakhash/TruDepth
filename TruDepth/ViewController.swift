@@ -10,6 +10,12 @@ class ViewController: UIViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
+    }
+    
+    // Start the AR session when the view will appear
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        
         let configuration = ARWorldTrackingConfiguration()
         configuration.frameSemantics.insert(.sceneDepth)
         session.run(configuration)
@@ -18,6 +24,15 @@ class ViewController: UIViewController {
         depthDataTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
             self?.processCurrentDepthData()
         }
+    }
+    
+    // Pause the AR session when the view will disappear
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        
+        session.pause()
+        depthDataTimer?.invalidate()
+        depthDataTimer = nil
     }
     
     func processCurrentDepthData() {
