@@ -1,45 +1,23 @@
 import UIKit
 import ARKit
 
-class ViewController: UIViewController {
+class ViewController: UIViewController, ARSessionDelegate {
     
     @IBOutlet weak var imageView: UIImageView!
-
+    @IBOutlet weak var liveFeedView: UIImageView!
+    
     let session = ARSession()
-    var depthDataTimer: Timer?
     
     override func viewDidLoad() {
         super.viewDidLoad()
-    }
-    
-    // Start the AR session when the view will appear
-    override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
-        
         let configuration = ARWorldTrackingConfiguration()
         configuration.frameSemantics.insert(.sceneDepth)
+        session.delegate = self
         session.run(configuration)
-        
-        // Call processCurrentDepthData() every 2 seconds
-        depthDataTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
-            self?.processCurrentDepthData()
-        }
     }
     
-    // Pause the AR session when the view will disappear
-    override func viewWillDisappear(_ animated: Bool) {
-        super.viewWillDisappear(animated)
-        
-        session.pause()
-        depthDataTimer?.invalidate()
-        depthDataTimer = nil
-    }
-    
-    func processCurrentDepthData() {
-        guard let frame = session.currentFrame, let depthData = frame.sceneDepth else {
-            print("Could not get current depth data")
-            return
-        }
+    func session(_ session: ARSession, didUpdate frame: ARFrame) {
+        guard let depthData = frame.sceneDepth else { return }
         
         let depthValues = depthValuesForPoints(from: depthData.depthMap)
         
@@ -47,6 +25,14 @@ class ViewController: UIViewController {
            let markedImage = drawPointsAndDistances(on: depthImage, depthValues: depthValues) {
             DispatchQueue.main.async {
                 self.imageView.image = markedImage
+            }
+        }
+        
+        // Get the camera image from the ARFrame
+        let pixelBuffer = frame.capturedImage
+        if let image = UIImage(pixelBuffer: pixelBuffer) {
+            DispatchQueue.main.async {
+                self.liveFeedView.image = image
             }
         }
     }
@@ -100,7 +86,7 @@ class ViewController: UIViewController {
         var ciImage = CIImage(cvPixelBuffer: depthMap)
         
         // adjustment for the intensity scale
-        let maxDepth: CGFloat = 3.0 // maximum depth to be considered
+        let maxDepth: CGFloat = 5.0 // maximum depth to be considered
         ciImage = ciImage.applyingFilter("CIColorControls", parameters: ["inputBrightness": 0, "inputContrast": 1, "inputSaturation": 0])
         ciImage = ciImage.applyingFilter("CILinearToSRGBToneCurve")
         ciImage = ciImage.applyingFilter("CIColorMatrix", parameters: [
@@ -140,5 +126,23 @@ class ViewController: UIViewController {
         CVPixelBufferUnlockBaseAddress(depthMap, CVPixelBufferLockFlags(rawValue: 0))
 
         return depthValues
+    }
+}
+
+extension UIImage {
+    convenience init?(pixelBuffer: CVPixelBuffer) {
+        var ciImage = CIImage(cvPixelBuffer: pixelBuffer)
+
+        // Create a rotation transform (90 degrees in radians)
+        let rotationDegrees = -90.0
+        let rotationRadians = CGFloat(rotationDegrees * (Double.pi / 180.0))
+        let rotationTransform = CGAffineTransform(rotationAngle: rotationRadians)
+
+        // Apply the rotation
+        ciImage = ciImage.transformed(by: rotationTransform)
+        
+        let context = CIContext(options: nil)
+        guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else { return nil }
+        self.init(cgImage: cgImage)
     }
 }
