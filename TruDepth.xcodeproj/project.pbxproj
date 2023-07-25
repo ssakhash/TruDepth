@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		7266836C2A6F5F6300A6D26F /* DPT_SwinV2_L_384.mlmodel in Sources */ = {isa = PBXBuildFile; fileRef = 7266836B2A6F5F6200A6D26F /* DPT_SwinV2_L_384.mlmodel */; };
 		727D62282A0EF82D0069C10E /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 727D62272A0EF82D0069C10E /* AppDelegate.swift */; };
 		727D622A2A0EF82D0069C10E /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 727D62292A0EF82D0069C10E /* SceneDelegate.swift */; };
 		727D622C2A0EF82D0069C10E /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 727D622B2A0EF82D0069C10E /* ViewController.swift */; };
@@ -17,6 +18,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		7266836B2A6F5F6200A6D26F /* DPT_SwinV2_L_384.mlmodel */ = {isa = PBXFileReference; lastKnownFileType = file.mlmodel; path = DPT_SwinV2_L_384.mlmodel; sourceTree = "<group>"; };
 		727D62242A0EF82D0069C10E /* TruDepth.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TruDepth.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		727D62272A0EF82D0069C10E /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		727D62292A0EF82D0069C10E /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
@@ -62,6 +64,7 @@
 				727D62292A0EF82D0069C10E /* SceneDelegate.swift */,
 				727D622B2A0EF82D0069C10E /* ViewController.swift */,
 				727D622D2A0EF82D0069C10E /* Main.storyboard */,
+				7266836B2A6F5F6200A6D26F /* DPT_SwinV2_L_384.mlmodel */,
 				727D62332A0EF82F0069C10E /* Assets.xcassets */,
 				727D62352A0EF82F0069C10E /* LaunchScreen.storyboard */,
 				727D62382A0EF82F0069C10E /* Info.plist */,
@@ -144,6 +147,7 @@
 				727D622C2A0EF82D0069C10E /* ViewController.swift in Sources */,
 				727D62322A0EF82D0069C10E /* TruDepth.xcdatamodeld in Sources */,
 				727D62282A0EF82D0069C10E /* AppDelegate.swift in Sources */,
+				7266836C2A6F5F6300A6D26F /* DPT_SwinV2_L_384.mlmodel in Sources */,
 				727D622A2A0EF82D0069C10E /* SceneDelegate.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

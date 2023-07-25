@@ -1,42 +1,72 @@
-import UIKit
-import ARKit
+//
+//  ViewController.swift
+//  TruDepth
+//
+//  Created by Akhash Subramanian Shunmugam on 5/13/23.
+//
 
+import ARKit
+import AVFoundation
+import UIKit
+
+// MARK: - ViewController
+// This class handles AR functionality, including the AR Session and AR Frame updates. It also processes depth data.
 class ViewController: UIViewController, ARSessionDelegate {
     
+    //MARK: - Outlets
+    // ImageView for showing depth data
     @IBOutlet weak var imageView: UIImageView!
+    // ImageView for live camera feed
     @IBOutlet weak var liveFeedView: UIImageView!
-    
-    let session = ARSession()
-    
+        
+    //MARK: - Variables
+    // AR Session for managing AR experience
+    var session: ARSession!
+        
+    // Function triggered when the view loads
     override func viewDidLoad() {
         super.viewDidLoad()
-        let configuration = ARWorldTrackingConfiguration()
-        configuration.frameSemantics.insert(.sceneDepth)
+        // Sets up the AR Session
+        setupARSession()
+    }
+        
+    // MARK: - Setup ARSession
+    // This function initializes ARSession and configures it for world tracking and depth data
+    func setupARSession() {
+        session = ARSession()
         session.delegate = self
+        
+        // Create a session configuration
+        let configuration = ARWorldTrackingConfiguration()
+        
+        // Enable depth data
+        configuration.frameSemantics.insert(.sceneDepth)
+        
+        // Run the view's session
         session.run(configuration)
     }
-    
+        
+    // MARK: - ARSession Delegate Methods
+    // This function is called every time ARFrame updates
     func session(_ session: ARSession, didUpdate frame: ARFrame) {
-        guard let depthData = frame.sceneDepth else { return }
-        
-        let depthValues = depthValuesForPoints(from: depthData.depthMap)
-        
-        if let depthImage = depthDataToUIImage(from: depthData),
-           let markedImage = drawPointsAndDistances(on: depthImage, depthValues: depthValues) {
-            DispatchQueue.main.async {
-                self.imageView.image = markedImage
+        // Update imageView with depth data
+        if let depthMap = frame.sceneDepth?.depthMap {
+            var ciImage = CIImage(cvPixelBuffer: depthMap)
+            ciImage = ciImage.oriented(.right)
+            if let uiImage = cropToCenter(image: ciImage) {
+                let depthValues = depthValuesForPoints(from: depthMap)
+                imageView.image = drawPointsAndDistances(on: uiImage, depthValues: depthValues)
             }
         }
-        
-        // Get the camera image from the ARFrame
+            
+        // Update liveFeedView with camera feed
         let pixelBuffer = frame.capturedImage
-        if let image = UIImage(pixelBuffer: pixelBuffer) {
-            DispatchQueue.main.async {
-                self.liveFeedView.image = image
-            }
-        }
+        var ciImage = CIImage(cvPixelBuffer: pixelBuffer)
+        ciImage = ciImage.oriented(.right)
+        liveFeedView.image = cropToCenter(image: ciImage)
     }
     
+    // Function for drawing points and distances on an image
     func drawPointsAndDistances(on image: UIImage, depthValues: [Float]) -> UIImage? {
         let scale = UIScreen.main.scale
         UIGraphicsBeginImageContextWithOptions(image.size, false, scale)
@@ -53,7 +83,7 @@ class ViewController: UIViewController, ARSessionDelegate {
         context.setFillColor(UIColor.red.cgColor)
         context.setLineWidth(1.0)
         
-        let pointSize: CGFloat = 2.0
+        let pointSize: CGFloat = 1.5
         
         let gridDimensions = 5
         for i in 0..<depthValues.count {
@@ -79,29 +109,8 @@ class ViewController: UIViewController, ARSessionDelegate {
         
         return newImage
     }
-
-
-    func depthDataToUIImage(from depthData: ARDepthData) -> UIImage? {
-        let depthMap: CVPixelBuffer = depthData.depthMap
-        var ciImage = CIImage(cvPixelBuffer: depthMap)
-        
-        // adjustment for the intensity scale
-        let maxDepth: CGFloat = 5.0 // maximum depth to be considered
-        ciImage = ciImage.applyingFilter("CIColorControls", parameters: ["inputBrightness": 0, "inputContrast": 1, "inputSaturation": 0])
-        ciImage = ciImage.applyingFilter("CILinearToSRGBToneCurve")
-        ciImage = ciImage.applyingFilter("CIColorMatrix", parameters: [
-            "inputRVector": CIVector(x: 1/maxDepth, y: 0, z: 0, w: 0),
-            "inputGVector": CIVector(x: 0, y: 1/maxDepth, z: 0, w: 0),
-            "inputBVector": CIVector(x: 0, y: 0, z: 1/maxDepth, w: 0),
-            "inputBiasVector": CIVector(x: 0, y: 0, z: 0, w: 0)
-        ])
-        
-        let context = CIContext(options: nil)
-        guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else { return nil }
-
-        return UIImage(cgImage: cgImage, scale: 1.0, orientation: .right)
-    }
-
+    
+    // Function for obtaining depth values from a depth map
     func depthValuesForPoints(from depthMap: CVPixelBuffer) -> [Float] {
         CVPixelBufferLockBaseAddress(depthMap, CVPixelBufferLockFlags(rawValue: 0))
         
@@ -127,22 +136,39 @@ class ViewController: UIViewController, ARSessionDelegate {
 
         return depthValues
     }
-}
-
-extension UIImage {
-    convenience init?(pixelBuffer: CVPixelBuffer) {
-        var ciImage = CIImage(cvPixelBuffer: pixelBuffer)
-
-        // Create a rotation transform (90 degrees in radians)
-        let rotationDegrees = -90.0
-        let rotationRadians = CGFloat(rotationDegrees * (Double.pi / 180.0))
-        let rotationTransform = CGAffineTransform(rotationAngle: rotationRadians)
-
-        // Apply the rotation
-        ciImage = ciImage.transformed(by: rotationTransform)
+    
+    // MARK: - Crop to Center
+    // This function crops the input image to the center, converting a 4:3 aspect ratio to 1:1
+    func cropToCenter(image: CIImage) -> UIImage? {
+        guard let cgImage = CIContext().createCGImage(image, from: image.extent) else { return nil }
+        let uiImage = UIImage(cgImage: cgImage)
+        let contextSize: CGSize = uiImage.size
+        var posX: CGFloat = 0.0
+        var posY: CGFloat = 0.0
+        var cgwidth: CGFloat = 0.0
+        var cgheight: CGFloat = 0.0
         
-        let context = CIContext(options: nil)
-        guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else { return nil }
-        self.init(cgImage: cgImage)
+        // See what size is longer and create the center off of that
+        if contextSize.width > contextSize.height {
+            posX = ((contextSize.width - contextSize.height) / 2)
+            posY = 0
+            cgwidth = contextSize.height
+            cgheight = contextSize.height
+        } else {
+            posX = 0
+            posY = ((contextSize.height - contextSize.width) / 2)
+            cgwidth = contextSize.width
+            cgheight = contextSize.width
+        }
+        
+        let rect: CGRect = CGRect(x: posX, y: posY, width: cgwidth, height: cgheight)
+        
+        // Create bitmap image from context using the rect
+        guard let imageRef: CGImage = cgImage.cropping(to: rect) else { return nil }
+        
+        // Create a new image based on the imageRef and rotate back to the original orientation
+        let croppedImage: UIImage = UIImage(cgImage: imageRef, scale: uiImage.scale, orientation: uiImage.imageOrientation)
+        
+        return croppedImage
     }
 }
