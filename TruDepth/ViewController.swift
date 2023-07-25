@@ -75,13 +75,10 @@ class ViewController: UIViewController, ARSessionDelegate {
         
         let attributes: [NSAttributedString.Key: Any] = [
             .font: UIFont.systemFont(ofSize: 7.5),
-            .foregroundColor: UIColor.white
+            .foregroundColor: UIColor.green
         ]
         
         guard let context = UIGraphicsGetCurrentContext() else { return nil }
-        
-        context.setFillColor(UIColor.red.cgColor)
-        context.setLineWidth(1.0)
         
         let pointSize: CGFloat = 1.5
         
@@ -95,12 +92,17 @@ class ViewController: UIViewController, ARSessionDelegate {
             let y = (CGFloat(row) + 1) * squareHeight
             let point = CGRect(x: x - pointSize / 2, y: y - pointSize / 2, width: pointSize, height: pointSize)
             
-            context.fillEllipse(in: point)
-            
             let depthInMeters = depthValues[i]
-            let depthString = String(format: "%.2f m", depthInMeters)
-            let textPoint = CGPoint(x: x-10, y: y - pointSize / 2 - 15)
-            depthString.draw(at: textPoint, withAttributes: attributes)
+            if depthInMeters <= 5.0 {
+                context.setFillColor(UIColor.green.cgColor)
+                let depthString = String(format: "%.2f m", depthInMeters)
+                let textPoint = CGPoint(x: x-10, y: y - pointSize / 2 - 15)
+                depthString.draw(at: textPoint, withAttributes: attributes)
+            } else {
+                context.setFillColor(UIColor.red.cgColor)
+            }
+            
+            context.fillEllipse(in: point)
         }
         
         let newImage = UIGraphicsGetImageFromCurrentImageContext()

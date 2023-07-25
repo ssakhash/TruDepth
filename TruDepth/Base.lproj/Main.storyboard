@@ -30,8 +30,8 @@
                         <color key="backgroundColor" systemColor="systemBackgroundColor"/>
                     </view>
                     <connections>
-                        <outlet property="imageView" destination="Rln-g8-feC" id="l2U-bn-oAG"/>
-                        <outlet property="liveFeedView" destination="O2X-RX-MSj" id="ngK-96-iBp"/>
+                        <outlet property="imageView" destination="Rln-g8-feC" id="vSY-f0-0fY"/>
+                        <outlet property="liveFeedView" destination="O2X-RX-MSj" id="rVJ-59-42J"/>
                     </connections>
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="dkx-z0-nzr" sceneMemberID="firstResponder"/>
