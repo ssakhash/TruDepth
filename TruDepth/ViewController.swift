@@ -75,14 +75,15 @@ class ViewController: UIViewController, ARSessionDelegate {
     // Generate a grid of points within the given rectangle
     private func generateGridPoints(for extent: CGRect) -> [CGPoint] {
         var points = [CGPoint]()
-        for i in 1...5 {
-            for j in 1...5 {
-                let point = CGPoint(x: CGFloat(j) / 6, y: 1 - CGFloat(i) / 6) // Mirrored points
+        for i in 1...7 {
+            for j in 1...7 {
+                let point = CGPoint(x: CGFloat(j) / 8, y: 1 - CGFloat(i) / 8) // Mirrored points
                 points.append(point)
             }
         }
         return points
     }
+
 
     // Get the depth values for the given points from the pixel buffer
     private func depthValues(for points: [CGPoint], in pixelBuffer: CVPixelBuffer) -> [Float] {
