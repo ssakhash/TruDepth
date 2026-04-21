@@ -1,81 +1,148 @@
-//
-//  AppDelegate.swift
-//  TruDepth
-//
-//  Created by Akhash Subramanian Shunmugam on 5/13/23.
-//
-
-import UIKit
-import CoreData
+import SwiftUI
 
 @main
-class AppDelegate: UIResponder, UIApplicationDelegate {
-
-
-
-    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
-        return true
+struct TruDepthApp: App {
+    var body: some Scene {
+        WindowGroup {
+            HomeView()
+        }
     }
+}
 
-    // MARK: UISceneSession Lifecycle
+// MARK: - Home Screen
 
-    func application(_ application: UIApplication, configurationForConnecting connectingSceneSession: UISceneSession, options: UIScene.ConnectionOptions) -> UISceneConfiguration {
-        // Called when a new scene session is being created.
-        // Use this method to select a configuration to create the new scene with.
-        return UISceneConfiguration(name: "Default Configuration", sessionRole: connectingSceneSession.role)
-    }
+struct HomeView: View {
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color.black.ignoresSafeArea()
 
-    func application(_ application: UIApplication, didDiscardSceneSessions sceneSessions: Set<UISceneSession>) {
-        // Called when the user discards a scene session.
-        // If any sessions were discarded while the application was not running, this will be called shortly after application:didFinishLaunchingWithOptions.
-        // Use this method to release any resources that were specific to the discarded scenes, as they will not return.
-    }
+                VStack(spacing: 0) {
+                    headerSection
+                        .padding(.top, 56)
 
-    // MARK: - Core Data stack
+                    Spacer()
 
-    lazy var persistentContainer: NSPersistentContainer = {
-        /*
-         The persistent container for the application. This implementation
-         creates and returns a container, having loaded the store for the
-         application to it. This property is optional since there are legitimate
-         error conditions that could cause the creation of the store to fail.
-        */
-        let container = NSPersistentContainer(name: "TruDepth")
-        container.loadPersistentStores(completionHandler: { (storeDescription, error) in
-            if let error = error as NSError? {
-                // Replace this implementation with code to handle the error appropriately.
-                // fatalError() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
-                 
-                /*
-                 Typical reasons for an error here include:
-                 * The parent directory does not exist, cannot be created, or disallows writing.
-                 * The persistent store is not accessible, due to permissions or data protection when the device is locked.
-                 * The device is out of space.
-                 * The store could not be migrated to the current model version.
-                 Check the error message to determine what the actual problem was.
-                 */
-                fatalError("Unresolved error \(error), \(error.userInfo)")
+                    featureCards
+                        .padding(.horizontal, 20)
+
+                    Spacer()
+
+                    footer
+                        .padding(.bottom, 28)
+                }
             }
-        })
-        return container
-    }()
+            .navigationBarHidden(true)
+        }
+        .preferredColorScheme(.dark)
+    }
 
-    // MARK: - Core Data Saving support
-
-    func saveContext () {
-        let context = persistentContainer.viewContext
-        if context.hasChanges {
-            do {
-                try context.save()
-            } catch {
-                // Replace this implementation with code to handle the error appropriately.
-                // fatalError() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
-                let nserror = error as NSError
-                fatalError("Unresolved error \(nserror), \(nserror.userInfo)")
-            }
+    private var headerSection: some View {
+        VStack(spacing: 6) {
+            Text("TruDepth")
+                .font(.system(size: 40, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+            Text("LiDAR · Depth · Room Scanning")
+                .font(.subheadline)
+                .foregroundStyle(.white.opacity(0.4))
+                .tracking(1.5)
         }
     }
 
+    private var featureCards: some View {
+        VStack(spacing: 16) {
+            NavigationLink(destination: LiveMeshView()) {
+                FeatureCard(
+                    icon: "cube.transparent.fill",
+                    title: "Live Depth",
+                    subtitle: "Real-time LiDAR mesh visualization",
+                    gradient: [Color(hex: "0A84FF"), Color(hex: "5E5CE6")]
+                )
+            }
+            .buttonStyle(.plain)
+
+            NavigationLink(destination: RoomScanView()) {
+                FeatureCard(
+                    icon: "house.fill",
+                    title: "Scan Room",
+                    subtitle: "Capture and export a 3D room model",
+                    gradient: [Color(hex: "30D158"), Color(hex: "0A84FF")]
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var footer: some View {
+        Text("Requires iPhone with LiDAR Sensor")
+            .font(.caption2)
+            .foregroundStyle(.white.opacity(0.2))
+            .tracking(0.5)
+    }
 }
 
+// MARK: - Feature Card
+
+struct FeatureCard: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+    let gradient: [Color]
+
+    var body: some View {
+        HStack(spacing: 18) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(
+                        LinearGradient(
+                            colors: gradient,
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 58, height: 58)
+                Image(systemName: icon)
+                    .font(.title2)
+                    .foregroundStyle(.white)
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.5))
+            }
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.3))
+        }
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(.white.opacity(0.06))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .strokeBorder(.white.opacity(0.1), lineWidth: 1)
+                )
+        )
+    }
+}
+
+// MARK: - Helpers
+
+extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let r = Double((int >> 16) & 0xFF) / 255
+        let g = Double((int >> 8) & 0xFF) / 255
+        let b = Double(int & 0xFF) / 255
+        self.init(red: r, green: g, blue: b)
+    }
+}

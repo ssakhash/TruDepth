@@ -1,55 +1,229 @@
-//
-//  SceneDelegate.swift
-//  TruDepth
-//
-//  Created by Akhash Subramanian Shunmugam on 5/13/23.
-//
+import SwiftUI
+import ARKit
+import RealityKit
+import Combine
 
-import UIKit
+// MARK: - Live Mesh Screen
 
-class SceneDelegate: UIResponder, UIWindowSceneDelegate {
+struct LiveMeshView: View {
+    @StateObject private var viewModel = LiveMeshViewModel()
+    @Environment(\.dismiss) private var dismiss
 
-    var window: UIWindow?
-
-
-    func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
-        // Use this method to optionally configure and attach the UIWindow `window` to the provided UIWindowScene `scene`.
-        // If using a storyboard, the `window` property will automatically be initialized and attached to the scene.
-        // This delegate does not imply the connecting scene or session are new (see `application:configurationForConnectingSceneSession` instead).
-        guard let _ = (scene as? UIWindowScene) else { return }
+    var body: some View {
+        ZStack {
+            if viewModel.isSupported {
+                ARMeshContainer(viewModel: viewModel)
+                    .ignoresSafeArea()
+            } else {
+                Color.black.ignoresSafeArea()
+            }
+            overlayUI
+        }
+        .navigationBarHidden(true)
+        .statusBarHidden(true)
+        .onAppear { viewModel.start() }
+        .onDisappear { viewModel.stop() }
     }
 
-    func sceneDidDisconnect(_ scene: UIScene) {
-        // Called as the scene is being released by the system.
-        // This occurs shortly after the scene enters the background, or when its session is discarded.
-        // Release any resources associated with this scene that can be re-created the next time the scene connects.
-        // The scene may re-connect later, as its session was not necessarily discarded (see `application:didDiscardSceneSessions` instead).
+    private var overlayUI: some View {
+        VStack {
+            topBar
+            Spacer()
+            if !viewModel.isSupported { unsupportedBadge }
+            bottomControls
+        }
     }
 
-    func sceneDidBecomeActive(_ scene: UIScene) {
-        // Called when the scene has moved from an inactive state to an active state.
-        // Use this method to restart any tasks that were paused (or not yet started) when the scene was inactive.
+    private var topBar: some View {
+        HStack {
+            Button(action: { dismiss() }) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(.white.opacity(0.85))
+                    .padding(10)
+                    .background(.black.opacity(0.45), in: Circle())
+            }
+            Spacer()
+            if viewModel.isSupported { distanceBadge }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
     }
 
-    func sceneWillResignActive(_ scene: UIScene) {
-        // Called when the scene will move from an active state to an inactive state.
-        // This may occur due to temporary interruptions (ex. an incoming phone call).
+    private var distanceBadge: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(viewModel.distanceIsNear ? Color(hex: "30D158") : Color(hex: "FF453A"))
+                .frame(width: 8, height: 8)
+            Text(viewModel.centerDistance)
+                .font(.system(.subheadline, design: .monospaced).weight(.medium))
+                .foregroundStyle(.white)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 7)
+        .background(.black.opacity(0.5), in: Capsule())
     }
 
-    func sceneWillEnterForeground(_ scene: UIScene) {
-        // Called as the scene transitions from the background to the foreground.
-        // Use this method to undo the changes made on entering the background.
+    private var unsupportedBadge: some View {
+        Label("LiDAR not available on this device", systemImage: "exclamationmark.triangle.fill")
+            .font(.callout)
+            .foregroundStyle(.white)
+            .padding(16)
+            .background(.black.opacity(0.65), in: RoundedRectangle(cornerRadius: 14))
+            .padding(.bottom, 16)
     }
 
-    func sceneDidEnterBackground(_ scene: UIScene) {
-        // Called as the scene transitions from the foreground to the background.
-        // Use this method to save data, release shared resources, and store enough scene-specific state information
-        // to restore the scene back to its current state.
+    private var bottomControls: some View {
+        VStack(spacing: 10) {
+            Picker("Visualization", selection: $viewModel.visualization) {
+                ForEach(MeshVisualization.allCases, id: \.self) { mode in
+                    Text(mode.label).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 20)
 
-        // Save changes in the application's managed object context when the application transitions to the background.
-        (UIApplication.shared.delegate as? AppDelegate)?.saveContext()
+            if viewModel.visualization == .depth {
+                depthLegend
+            }
+        }
+        .padding(.bottom, 36)
     }
 
-
+    private var depthLegend: some View {
+        HStack(spacing: 8) {
+            Text("0 m")
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.6))
+            LinearGradient(
+                colors: [.red, .yellow, .green, .cyan, .blue],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .frame(height: 6)
+            .clipShape(Capsule())
+            Text("5 m")
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.6))
+        }
+        .padding(.horizontal, 24)
+    }
 }
 
+// MARK: - Visualization Mode
+
+enum MeshVisualization: CaseIterable {
+    case classification, wireframe, depth
+
+    var label: String {
+        switch self {
+        case .classification: "Classify"
+        case .wireframe:      "Wireframe"
+        case .depth:          "Depth"
+        }
+    }
+}
+
+// MARK: - ARView Container
+
+struct ARMeshContainer: UIViewRepresentable {
+    @ObservedObject var viewModel: LiveMeshViewModel
+
+    func makeUIView(context: Context) -> ARView {
+        viewModel.arView
+    }
+
+    func updateUIView(_ uiView: ARView, context: Context) {}
+}
+
+// MARK: - View Model
+
+@MainActor
+final class LiveMeshViewModel: ObservableObject {
+
+    let arView: ARView = {
+        let v = ARView(frame: .zero, cameraMode: .ar, automaticallyConfigureSession: false)
+        v.renderOptions = [.disableMotionBlur, .disableDepthOfField]
+        return v
+    }()
+
+    @Published var visualization: MeshVisualization = .classification {
+        didSet { applyVisualization(visualization) }
+    }
+    @Published var centerDistance: String = "-- m"
+    @Published var distanceIsNear: Bool = true
+
+    let isSupported = ARWorldTrackingConfiguration.supportsSceneReconstruction(.meshWithClassification)
+
+    private var distanceTimer: AnyCancellable?
+
+    func start() {
+        guard isSupported else { return }
+        let config = ARWorldTrackingConfiguration()
+        config.sceneReconstruction = .meshWithClassification
+        config.frameSemantics = [.sceneDepth]
+        config.environmentTexturing = .automatic
+        arView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
+        applyVisualization(.classification)
+        startDistancePolling()
+    }
+
+    func stop() {
+        arView.session.pause()
+        distanceTimer?.cancel()
+    }
+
+    func applyVisualization(_ mode: MeshVisualization) {
+        switch mode {
+        case .classification:
+            arView.debugOptions = [.showSceneUnderstanding]
+            arView.environment.sceneUnderstanding.options = [.occlusion]
+        case .wireframe:
+            arView.debugOptions = [.showSceneUnderstanding, .showWireframe]
+            arView.environment.sceneUnderstanding.options = [.occlusion]
+        case .depth:
+            arView.debugOptions = []
+            arView.environment.sceneUnderstanding.options = []
+            colorMeshByDepth()
+        }
+    }
+
+    // Color each mesh anchor face by its distance from the camera.
+    private func colorMeshByDepth() {
+        guard let frame = arView.session.currentFrame else { return }
+        for anchor in frame.anchors.compactMap({ $0 as? ARMeshAnchor }) {
+            guard let entity = arView.scene.findEntity(named: anchor.identifier.uuidString) as? ModelEntity
+            else { continue }
+            let pos = anchor.transform.columns.3
+            let dist = simd_length(simd_float3(pos.x, pos.y, pos.z))
+            var mat = UnlitMaterial()
+            mat.color = .init(tint: jetColor(for: dist))
+            entity.model?.materials = [mat]
+        }
+    }
+
+    private func jetColor(for distance: Float) -> UIColor {
+        let t = Double(max(0, min(1, distance / 5.0)))
+        let hue = 0.67 * (1.0 - t) // blue (far) → red (near)
+        return UIColor(hue: hue, saturation: 0.9, brightness: 1.0, alpha: 0.85)
+    }
+
+    private func startDistancePolling() {
+        distanceTimer = Timer.publish(every: 0.15, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in self?.sampleCenterDepth() }
+    }
+
+    private func sampleCenterDepth() {
+        guard let depthMap = arView.session.currentFrame?.sceneDepth?.depthMap else { return }
+        CVPixelBufferLockBaseAddress(depthMap, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(depthMap, .readOnly) }
+        let w = CVPixelBufferGetWidth(depthMap)
+        let h = CVPixelBufferGetHeight(depthMap)
+        guard let base = CVPixelBufferGetBaseAddress(depthMap) else { return }
+        let value = base.assumingMemoryBound(to: Float32.self)[(h / 2) * w + (w / 2)]
+        guard value > 0 else { return }
+        centerDistance = String(format: "%.2f m", value)
+        distanceIsNear = value <= 5.0
+    }
+}
