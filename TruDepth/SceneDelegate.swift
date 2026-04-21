@@ -179,7 +179,7 @@ final class LiveMeshViewModel: ObservableObject {
             arView.debugOptions = [.showSceneUnderstanding]
             arView.environment.sceneUnderstanding.options = [.occlusion]
         case .wireframe:
-            arView.debugOptions = [.showSceneUnderstanding, .showWireframe]
+            arView.debugOptions = [.showSceneUnderstanding, .showAnchorGeometry]
             arView.environment.sceneUnderstanding.options = [.occlusion]
         case .depth:
             arView.debugOptions = []
