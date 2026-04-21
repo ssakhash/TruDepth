@@ -2,6 +2,7 @@ import SwiftUI
 import ARKit
 import RealityKit
 import Combine
+import MetalKit
 
 // MARK: - Live Mesh Screen
 
@@ -14,13 +15,17 @@ struct LiveMeshView: View {
             if viewModel.isSupported {
                 ARMeshContainer(viewModel: viewModel)
                     .ignoresSafeArea()
+                // Metal heatmap overlay — always in hierarchy; renderer controls visibility.
+                MTKHeatmapView(renderer: viewModel.heatmapRenderer)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
             } else {
                 Color.black.ignoresSafeArea()
             }
             overlayUI
         }
-        .navigationBarHidden(true)
-        .statusBarHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
+        .statusBar(hidden: true)
         .onAppear { viewModel.start() }
         .onDisappear { viewModel.stop() }
     }
@@ -35,15 +40,18 @@ struct LiveMeshView: View {
     }
 
     private var topBar: some View {
-        HStack {
-            Button(action: { dismiss() }) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.title2)
-                    .foregroundStyle(.white.opacity(0.85))
-                    .padding(10)
-                    .background(.black.opacity(0.45), in: Circle())
-            }
+        HStack(alignment: .center) {
+            Text("LIVE DEPTH")
+                .font(.system(size: 11, weight: .medium))
+                .tracking(1.0)
+                .foregroundStyle(.white.opacity(DS.textTertiary))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .shadow(color: .black.opacity(0.5), radius: 24, y: 8)
+
             Spacer()
+
             if viewModel.isSupported { distanceBadge }
         }
         .padding(.horizontal, 16)
@@ -53,15 +61,20 @@ struct LiveMeshView: View {
     private var distanceBadge: some View {
         HStack(spacing: 6) {
             Circle()
-                .fill(viewModel.distanceIsNear ? Color(hex: "30D158") : Color(hex: "FF453A"))
-                .frame(width: 8, height: 8)
+                .fill(viewModel.distanceIsNear ? Color.accent : .white.opacity(DS.textSecondary))
+                .frame(width: 7, height: 7)
+                .animation(.easeInOut(duration: 0.3), value: viewModel.distanceIsNear)
             Text(viewModel.centerDistance)
                 .font(.system(.subheadline, design: .monospaced).weight(.medium))
-                .foregroundStyle(.white)
+                .foregroundStyle(viewModel.distanceIsNear ? Color.accent : .white.opacity(DS.textSecondary))
+                .animation(.easeInOut(duration: 0.3), value: viewModel.distanceIsNear)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 7)
-        .background(.black.opacity(0.5), in: Capsule())
+        .background(.ultraThinMaterial, in: Capsule())
+        .shadow(color: viewModel.distanceIsNear ? Color.accent.opacity(0.35) : .black.opacity(0.5),
+                radius: 12, y: 0)
+        .animation(.easeInOut(duration: 0.3), value: viewModel.distanceIsNear)
     }
 
     private var unsupportedBadge: some View {
@@ -69,25 +82,34 @@ struct LiveMeshView: View {
             .font(.callout)
             .foregroundStyle(.white)
             .padding(16)
-            .background(.black.opacity(0.65), in: RoundedRectangle(cornerRadius: 14))
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .shadow(color: .black.opacity(0.5), radius: 24, y: 8)
             .padding(.bottom, 16)
     }
 
     private var bottomControls: some View {
-        VStack(spacing: 10) {
-            Picker("Visualization", selection: $viewModel.visualization) {
-                ForEach(MeshVisualization.allCases, id: \.self) { mode in
-                    Text(mode.label).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
+        VStack(spacing: 12) {
+            CustomSegmentedControl(
+                options: MeshVisualization.allCases.map(\.label),
+                selectedIndex: Binding(
+                    get: { MeshVisualization.allCases.firstIndex(of: viewModel.visualization) ?? 0 },
+                    set: { idx in
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                            viewModel.visualization = MeshVisualization.allCases[idx]
+                        }
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    }
+                )
+            )
             .padding(.horizontal, 20)
 
             if viewModel.visualization == .depth {
                 depthLegend
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .padding(.bottom, 36)
+        .animation(.spring(response: 0.4), value: viewModel.visualization == .depth)
+        .padding(.bottom, 100)
     }
 
     private var depthLegend: some View {
@@ -106,7 +128,45 @@ struct LiveMeshView: View {
                 .font(.caption2)
                 .foregroundStyle(.white.opacity(0.6))
         }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .shadow(color: .black.opacity(0.5), radius: 24, y: 8)
         .padding(.horizontal, 24)
+    }
+}
+
+// MARK: - Custom Segmented Control
+
+private struct CustomSegmentedControl: View {
+    let options: [String]
+    @Binding var selectedIndex: Int
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(options.indices, id: \.self) { idx in
+                Button(action: {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                        selectedIndex = idx
+                    }
+                }) {
+                    Text(options[idx])
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(selectedIndex == idx ? .white : .white.opacity(DS.textSecondary))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(
+                            Capsule()
+                                .fill(.white.opacity(selectedIndex == idx ? 0.12 : 0))
+                                .animation(.spring(response: 0.35, dampingFraction: 0.7), value: selectedIndex)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(4)
+        .background(.ultraThinMaterial, in: Capsule())
+        .shadow(color: .black.opacity(0.5), radius: 24, y: 8)
     }
 }
 
@@ -127,16 +187,27 @@ enum MeshVisualization: CaseIterable {
 // MARK: - ARView Container
 
 struct ARMeshContainer: UIViewRepresentable {
-    @ObservedObject var viewModel: LiveMeshViewModel
+    let viewModel: LiveMeshViewModel
 
-    func makeUIView(context: Context) -> ARView {
-        viewModel.arView
-    }
-
+    func makeUIView(context: Context) -> ARView { viewModel.arView }
     func updateUIView(_ uiView: ARView, context: Context) {}
 }
 
-// MARK: - View Model
+// MARK: - Metal Heatmap Container
+
+struct MTKHeatmapView: UIViewRepresentable {
+    let renderer: DepthHeatmapRenderer
+
+    func makeUIView(context: Context) -> MTKView {
+        let view = MTKView()
+        renderer.attach(view)
+        return view
+    }
+
+    func updateUIView(_ uiView: MTKView, context: Context) {}
+}
+
+// MARK: - Live Mesh View Model
 
 @MainActor
 final class LiveMeshViewModel: ObservableObject {
@@ -145,6 +216,14 @@ final class LiveMeshViewModel: ObservableObject {
         let v = ARView(frame: .zero, cameraMode: .ar, automaticallyConfigureSession: false)
         v.renderOptions = [.disableMotionBlur, .disableDepthOfField]
         return v
+    }()
+
+    let heatmapRenderer: DepthHeatmapRenderer = {
+        guard let device = MTLCreateSystemDefaultDevice(),
+              let renderer = DepthHeatmapRenderer(device: device) else {
+            fatalError("Metal is not available on this device")
+        }
+        return renderer
     }()
 
     @Published var visualization: MeshVisualization = .classification {
@@ -178,35 +257,57 @@ final class LiveMeshViewModel: ObservableObject {
         case .classification:
             arView.debugOptions = [.showSceneUnderstanding]
             arView.environment.sceneUnderstanding.options = [.occlusion]
+            heatmapRenderer.mtkView?.isHidden = true
         case .wireframe:
             arView.debugOptions = [.showSceneUnderstanding, .showAnchorGeometry]
             arView.environment.sceneUnderstanding.options = [.occlusion]
+            heatmapRenderer.mtkView?.isHidden = true
         case .depth:
             arView.debugOptions = []
             arView.environment.sceneUnderstanding.options = []
             colorMeshByDepth()
+            heatmapRenderer.mtkView?.isHidden = false
         }
     }
 
-    // Color each mesh anchor face by its distance from the camera.
+    // MARK: - Depth mode mesh coloring (camera-relative distance)
+
     private func colorMeshByDepth() {
         guard let frame = arView.session.currentFrame else { return }
-        for anchor in frame.anchors.compactMap({ $0 as? ARMeshAnchor }) {
-            guard let entity = arView.scene.findEntity(named: anchor.identifier.uuidString) as? ModelEntity
-            else { continue }
-            let pos = anchor.transform.columns.3
-            let dist = simd_length(simd_float3(pos.x, pos.y, pos.z))
-            var mat = UnlitMaterial()
-            mat.color = .init(tint: jetColor(for: dist))
-            entity.model?.materials = [mat]
+        let anchors = frame.anchors.compactMap { $0 as? ARMeshAnchor }
+        let cameraPos = arView.cameraTransform.translation
+
+        // Pre-compute anchor distances on main actor before handing off to background.
+        let anchorDistances: [(String, Float)] = anchors.map { anchor in
+            let p = anchor.transform.columns.3
+            let dist = simd_distance(cameraPos, simd_float3(p.x, p.y, p.z))
+            return (anchor.identifier.uuidString, dist)
+        }
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+            let updates: [(String, UIColor)] = anchorDistances.map { (name, dist) in
+                (name, Self.jetColor(for: dist))
+            }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                for (name, color) in updates {
+                    guard let entity = self.arView.scene.findEntity(named: name) as? ModelEntity
+                    else { continue }
+                    var mat = UnlitMaterial()
+                    mat.color = .init(tint: color)
+                    entity.model?.materials = [mat]
+                }
+            }
         }
     }
 
-    private func jetColor(for distance: Float) -> UIColor {
+    private static func jetColor(for distance: Float) -> UIColor {
         let t = Double(max(0, min(1, distance / 5.0)))
-        let hue = 0.67 * (1.0 - t) // blue (far) → red (near)
-        return UIColor(hue: hue, saturation: 0.9, brightness: 1.0, alpha: 0.85)
+        return UIColor(hue: 0.67 * (1.0 - t), saturation: 0.9, brightness: 1.0, alpha: 0.85)
     }
+
+    // MARK: - Center distance polling (off main thread)
 
     private func startDistancePolling() {
         distanceTimer = Timer.publish(every: 0.15, on: .main, in: .common)
@@ -216,14 +317,154 @@ final class LiveMeshViewModel: ObservableObject {
 
     private func sampleCenterDepth() {
         guard let depthMap = arView.session.currentFrame?.sceneDepth?.depthMap else { return }
-        CVPixelBufferLockBaseAddress(depthMap, .readOnly)
-        defer { CVPixelBufferUnlockBaseAddress(depthMap, .readOnly) }
+        let isDepthMode = visualization == .depth
+        // Capture main-actor properties before crossing into Sendable closure.
+        let renderer = heatmapRenderer
+        // CVPixelBuffer is not Sendable; wrap so the compiler accepts cross-thread transfer.
+        // Safety: we own the lock/unlock on the background thread and don't alias it elsewhere.
+        let box = UncheckedSendable(depthMap)
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let depthMap = box.value
+
+            // Feed Metal renderer while in depth mode (zero-copy texture path).
+            if isDepthMode {
+                renderer.update(depthMap: depthMap)
+            }
+
+            // Sample center pixel with correct stride.
+            CVPixelBufferLockBaseAddress(depthMap, .readOnly)
+            defer { CVPixelBufferUnlockBaseAddress(depthMap, .readOnly) }
+
+            let w = CVPixelBufferGetWidth(depthMap)
+            let h = CVPixelBufferGetHeight(depthMap)
+            guard w > 0, h > 0,
+                  let base = CVPixelBufferGetBaseAddress(depthMap) else { return }
+
+            let stride = CVPixelBufferGetBytesPerRow(depthMap) / MemoryLayout<Float32>.stride
+            let value = base.assumingMemoryBound(to: Float32.self)[(h / 2) * stride + (w / 2)]
+            guard value > 0 else { return }
+
+            let text = String(format: "%.2f m", value)
+            let near = value <= 5.0
+
+            DispatchQueue.main.async {
+                self?.centerDistance = text
+                self?.distanceIsNear = near
+            }
+        }
+    }
+}
+
+// MARK: - Sendable Helpers
+
+private struct UncheckedSendable<T>: @unchecked Sendable {
+    let value: T
+    init(_ value: T) { self.value = value }
+}
+
+// MARK: - Metal Depth Heatmap Renderer
+
+final class DepthHeatmapRenderer: NSObject, MTKViewDelegate {
+
+    private(set) var device: MTLDevice
+    private let commandQueue: MTLCommandQueue
+    private var pipelineState: MTLRenderPipelineState?
+    private var textureCache: CVMetalTextureCache?
+
+    // Thread-safe depth texture access.
+    private let textureLock = NSLock()
+    private var currentCVTexture: CVMetalTexture?
+    private var pendingDepthTexture: MTLTexture?
+
+    var maxDepth: Float = 5.0
+    weak var mtkView: MTKView?
+
+    init?(device: MTLDevice) {
+        guard let queue = device.makeCommandQueue() else { return nil }
+        self.device = device
+        self.commandQueue = queue
+        super.init()
+        CVMetalTextureCacheCreate(kCFAllocatorDefault, nil, device, nil, &textureCache)
+    }
+
+    // Called once by MTKHeatmapView after the MTKView is created.
+    func attach(_ view: MTKView) {
+        view.device = device
+        view.delegate = self
+        view.isPaused = false
+        view.preferredFramesPerSecond = 30
+        view.framebufferOnly = false
+        view.isOpaque = false
+        view.backgroundColor = .clear
+        view.isUserInteractionEnabled = false
+        view.isHidden = true  // hidden until depth mode is activated
+        setupPipeline(pixelFormat: view.colorPixelFormat)
+        mtkView = view
+    }
+
+    private func setupPipeline(pixelFormat: MTLPixelFormat) {
+        guard let library = device.makeDefaultLibrary(),
+              let vertFn  = library.makeFunction(name: "depth_heatmap_vert"),
+              let fragFn  = library.makeFunction(name: "depth_heatmap_frag") else { return }
+
+        let desc = MTLRenderPipelineDescriptor()
+        desc.vertexFunction = vertFn
+        desc.fragmentFunction = fragFn
+        desc.colorAttachments[0].pixelFormat = pixelFormat
+        desc.colorAttachments[0].isBlendingEnabled = true
+        desc.colorAttachments[0].rgbBlendOperation = .add
+        desc.colorAttachments[0].alphaBlendOperation = .add
+        desc.colorAttachments[0].sourceRGBBlendFactor = .sourceAlpha
+        desc.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceAlpha
+        desc.colorAttachments[0].sourceAlphaBlendFactor = .one
+        desc.colorAttachments[0].destinationAlphaBlendFactor = .zero
+        pipelineState = try? device.makeRenderPipelineState(descriptor: desc)
+    }
+
+    // Called from a background thread by LiveMeshViewModel.
+    func update(depthMap: CVPixelBuffer) {
+        guard let cache = textureCache else { return }
         let w = CVPixelBufferGetWidth(depthMap)
         let h = CVPixelBufferGetHeight(depthMap)
-        guard let base = CVPixelBufferGetBaseAddress(depthMap) else { return }
-        let value = base.assumingMemoryBound(to: Float32.self)[(h / 2) * w + (w / 2)]
-        guard value > 0 else { return }
-        centerDistance = String(format: "%.2f m", value)
-        distanceIsNear = value <= 5.0
+        var cvTex: CVMetalTexture?
+        let status = CVMetalTextureCacheCreateTextureFromImage(
+            kCFAllocatorDefault, cache, depthMap, nil, .r32Float, w, h, 0, &cvTex)
+        guard status == kCVReturnSuccess, let cvTex else { return }
+        CVMetalTextureCacheFlush(cache, 0)
+        let texture = CVMetalTextureGetTexture(cvTex)
+        textureLock.lock()
+        currentCVTexture = cvTex   // keep CVMetalTexture alive
+        pendingDepthTexture = texture
+        textureLock.unlock()
     }
+
+    // MARK: - MTKViewDelegate
+
+    func draw(in view: MTKView) {
+        textureLock.lock()
+        let texture = pendingDepthTexture
+        textureLock.unlock()
+
+        guard let texture,
+              let pipeline = pipelineState,
+              let descriptor = view.currentRenderPassDescriptor,
+              let drawable = view.currentDrawable,
+              let buffer = commandQueue.makeCommandBuffer() else { return }
+
+        descriptor.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 0)
+        descriptor.colorAttachments[0].loadAction = .clear
+
+        guard let encoder = buffer.makeRenderCommandEncoder(descriptor: descriptor) else { return }
+        encoder.setRenderPipelineState(pipeline)
+        encoder.setFragmentTexture(texture, index: 0)
+        encoder.setFragmentBytes(&maxDepth, length: MemoryLayout<Float>.size, index: 0)
+        encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
+        encoder.endEncoding()
+
+        buffer.present(drawable)
+        buffer.commit()
+    }
+
+    func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
 }

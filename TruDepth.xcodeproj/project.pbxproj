@@ -10,6 +10,7 @@
 		AAFF00032A0EF82D0069C10E /* RealityKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAFF00012A0EF82D0069C10E /* RealityKit.framework */; };
 		AAFF00042A0EF82D0069C10E /* RoomPlan.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAFF00022A0EF82D0069C10E /* RoomPlan.framework */; };
 		AAFF00052A0EF82D0069C10E /* ARKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAFF00062A0EF82D0069C10E /* ARKit.framework */; };
+		AAFF00082A0EF82D0069C10E /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAFF00092A0EF82D0069C10E /* MetalKit.framework */; };
 		727D62282A0EF82D0069C10E /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 727D62272A0EF82D0069C10E /* AppDelegate.swift */; };
 		727D622A2A0EF82D0069C10E /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 727D62292A0EF82D0069C10E /* SceneDelegate.swift */; };
 		727D622C2A0EF82D0069C10E /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 727D622B2A0EF82D0069C10E /* ViewController.swift */; };
@@ -23,6 +24,7 @@
 		AAFF00012A0EF82D0069C10E /* RealityKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = RealityKit.framework; path = System/Library/Frameworks/RealityKit.framework; sourceTree = SDKROOT; };
 		AAFF00022A0EF82D0069C10E /* RoomPlan.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = RoomPlan.framework; path = System/Library/Frameworks/RoomPlan.framework; sourceTree = SDKROOT; };
 		AAFF00062A0EF82D0069C10E /* ARKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ARKit.framework; path = System/Library/Frameworks/ARKit.framework; sourceTree = SDKROOT; };
+		AAFF00092A0EF82D0069C10E /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
 		727D62242A0EF82D0069C10E /* TruDepth.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TruDepth.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		727D62272A0EF82D0069C10E /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		727D62292A0EF82D0069C10E /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
@@ -42,6 +44,7 @@
 				AAFF00032A0EF82D0069C10E /* RealityKit.framework in Frameworks */,
 				AAFF00042A0EF82D0069C10E /* RoomPlan.framework in Frameworks */,
 				AAFF00052A0EF82D0069C10E /* ARKit.framework in Frameworks */,
+				AAFF00082A0EF82D0069C10E /* MetalKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -63,6 +66,7 @@
 				AAFF00012A0EF82D0069C10E /* RealityKit.framework */,
 				AAFF00022A0EF82D0069C10E /* RoomPlan.framework */,
 				AAFF00062A0EF82D0069C10E /* ARKit.framework */,
+				AAFF00092A0EF82D0069C10E /* MetalKit.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
