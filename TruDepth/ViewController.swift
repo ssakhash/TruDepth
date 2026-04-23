@@ -29,7 +29,9 @@ struct RoomScanView: View {
                     .transition(.opacity.combined(with: .scale(0.96, anchor: .center)))
             case .done:
                 if let room = viewModel.capturedRoom, let url = viewModel.exportURL {
-                    ModelViewerView(capturedRoom: room, exportURL: url, onNewScan: viewModel.reset)
+                    ModelViewerView(capturedRoom: room, exportURL: url,
+                                    depthImageURL: viewModel.depthImageURL,
+                                    onNewScan: viewModel.reset)
                         .transition(.opacity)
                 }
             }
@@ -58,8 +60,8 @@ struct RoomScanView: View {
                     .shadow(color: Color.accent.opacity(0.35), radius: 12)
 
                 VStack(spacing: 8) {
-                    Text("Scan Room")
-                        .font(.system(size: 22, weight: .semibold))
+                    Text("scan room")
+                        .font(.system(size: 22, weight: .light))
                         .foregroundStyle(.white)
                     Text("Walk around your room.\nTruDepth will capture walls, doors,\nwindows, and furniture.")
                         .multilineTextAlignment(.center)
@@ -76,12 +78,12 @@ struct RoomScanView: View {
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                         viewModel.startScan()
                     }) {
-                        Text("Start Scanning")
-                            .font(.headline)
+                        Text("start scanning")
+                            .font(.system(size: 17, weight: .medium))
                             .foregroundStyle(.black)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 16)
-                            .background(Color.accent, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .background(Color.accent, in: Capsule())
                     }
 
                     Button(action: { dismiss() }) {
@@ -105,13 +107,12 @@ struct RoomScanView: View {
                     UIImpactFeedbackGenerator(style: .soft).impactOccurred()
                     viewModel.cancelScan()
                 }) {
-                    Text("Cancel")
+                    Text("cancel")
                         .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
-                        .background(.ultraThinMaterial, in: Capsule())
-                        .shadow(color: .black.opacity(0.5), radius: 24, y: 8)
+                        .background(Color(white: 0.12), in: Capsule())
                 }
 
                 Spacer()
@@ -122,8 +123,7 @@ struct RoomScanView: View {
                     .foregroundStyle(.white.opacity(DS.textSecondary))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .shadow(color: .black.opacity(0.5), radius: 24, y: 8)
+                    .background(Color(white: 0.12), in: Capsule())
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
 
@@ -133,13 +133,12 @@ struct RoomScanView: View {
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     viewModel.finishScan()
                 }) {
-                    Text("Done")
+                    Text("done")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(.black)
                         .padding(.horizontal, 20)
                         .padding(.vertical, 8)
                         .background(Color.accent, in: Capsule())
-                        .shadow(color: Color.accent.opacity(0.35), radius: 12)
                 }
             }
             .padding(.horizontal, 16)
@@ -147,10 +146,36 @@ struct RoomScanView: View {
 
             Spacer()
 
+            captureDepthButton
+                .padding(.bottom, 16)
+
             wallProgressBar
                 .padding(.horizontal, 20)
                 .padding(.bottom, 36)
         }
+    }
+
+    private var captureDepthButton: some View {
+        Button(action: { viewModel.captureDepthSnapshot() }) {
+            ZStack {
+                Circle()
+                    .strokeBorder(.white.opacity(viewModel.depthCaptureConfirmed ? 0.9 : 0.4), lineWidth: 2)
+                    .frame(width: 56, height: 56)
+                if viewModel.depthCaptureConfirmed {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundStyle(.white)
+                        .transition(.scale.combined(with: .opacity))
+                } else {
+                    Image(systemName: "camera.aperture")
+                        .font(.system(size: 20, weight: .light))
+                        .foregroundStyle(.white.opacity(0.7))
+                        .transition(.scale.combined(with: .opacity))
+                }
+            }
+        }
+        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: viewModel.depthCaptureConfirmed)
+        .disabled(viewModel.depthCaptureConfirmed)
     }
 
     private var wallProgressBar: some View {
@@ -176,8 +201,7 @@ struct RoomScanView: View {
             .frame(height: 3)
         }
         .padding(14)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .shadow(color: .black.opacity(0.5), radius: 24, y: 8)
+        .background(Color(white: 0.1), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     // MARK: Processing
@@ -189,11 +213,11 @@ struct RoomScanView: View {
                 ProgressView()
                     .scaleEffect(1.5)
                     .tint(Color.accent)
-                Text("Building 3D Model…")
-                    .font(.headline)
+                Text("building 3d model…")
+                    .font(.system(size: 17, weight: .light))
                     .foregroundStyle(.white)
                     .padding(.top, 8)
-                Text("This may take a few seconds")
+                Text("this may take a few seconds")
                     .font(.subheadline)
                     .foregroundStyle(.white.opacity(DS.textSecondary))
             }
@@ -223,12 +247,15 @@ final class RoomScanViewModel: ObservableObject {
     @Published var phase: Phase = .idle
     @Published var capturedRoom: CapturedRoom?
     @Published var exportURL: URL?
+    @Published var depthImageURL: URL?
     @Published var statusText: String = "Point at walls to begin"
     @Published var wallCount: Int = 0
+    @Published var depthCaptureConfirmed: Bool = false
     @Published var showError = false
     @Published var errorMessage = ""
 
     private var session: RoomCaptureSession { captureView.captureSession }
+    private var wantsDepthCapture: Bool = false
 
     func startScan() {
         session.delegate = self
@@ -244,15 +271,90 @@ final class RoomScanViewModel: ObservableObject {
     func cancelScan() {
         session.delegate = nil  // prevent late callbacks
         session.stop()
+        wantsDepthCapture = false
+        depthCaptureConfirmed = false
         phase = .idle
     }
 
     func reset() {
         capturedRoom = nil
         exportURL = nil
+        depthImageURL = nil
         wallCount = 0
+        wantsDepthCapture = false
+        depthCaptureConfirmed = false
         statusText = "Point at walls to begin"
         phase = .idle
+    }
+
+    func captureDepthSnapshot() {
+        wantsDepthCapture = true
+        depthCaptureConfirmed = true
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        Task {
+            try? await Task.sleep(for: .milliseconds(1500))
+            depthCaptureConfirmed = false
+        }
+    }
+
+    // Runs a brief ARSession (after RoomPlan session has stopped) to grab one depth frame.
+    private func captureOneDepthFrame() async -> UIImage? {
+        let arSession = ARSession()
+        let config = ARWorldTrackingConfiguration()
+        config.frameSemantics = [.sceneDepth]
+        arSession.run(config)
+        defer { arSession.pause() }
+
+        for _ in 0..<30 {
+            try? await Task.sleep(for: .milliseconds(100))
+            if let depthMap = arSession.currentFrame?.sceneDepth?.depthMap {
+                return Self.depthMapToImage(depthMap)
+            }
+        }
+        return nil
+    }
+
+    // Converts a Float32 depth CVPixelBuffer to a jet-colormap UIImage (portrait oriented).
+    static func depthMapToImage(_ depthMap: CVPixelBuffer, maxDepth: Float = 5.0) -> UIImage? {
+        CVPixelBufferLockBaseAddress(depthMap, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(depthMap, .readOnly) }
+
+        let w = CVPixelBufferGetWidth(depthMap)
+        let h = CVPixelBufferGetHeight(depthMap)
+        let stride = CVPixelBufferGetBytesPerRow(depthMap) / MemoryLayout<Float32>.stride
+        guard let base = CVPixelBufferGetBaseAddress(depthMap) else { return nil }
+        let ptr = base.assumingMemoryBound(to: Float32.self)
+
+        var rgba = [UInt8](repeating: 0, count: w * h * 4)
+        for row in 0..<h {
+            for col in 0..<w {
+                let d = ptr[row * stride + col]
+                let idx = (row * w + col) * 4
+                if d > 0 && d <= maxDepth * 1.5 {
+                    let t = min(max(d / maxDepth, 0), 1)
+                    rgba[idx]     = UInt8(max(0, min(1, 1.5 - abs(4.0 * t - 3.0))) * 255)
+                    rgba[idx + 1] = UInt8(max(0, min(1, 1.5 - abs(4.0 * t - 2.0))) * 255)
+                    rgba[idx + 2] = UInt8(max(0, min(1, 1.5 - abs(4.0 * t - 1.0))) * 255)
+                    rgba[idx + 3] = 255
+                }
+            }
+        }
+
+        let cs = CGColorSpaceCreateDeviceRGB()
+        guard let provider = CGDataProvider(data: Data(rgba) as CFData),
+              let cgImg = CGImage(width: w, height: h, bitsPerComponent: 8, bitsPerPixel: 32,
+                                  bytesPerRow: w * 4, space: cs,
+                                  bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+                                  provider: provider, decode: nil, shouldInterpolate: false,
+                                  intent: .defaultIntent) else { return nil }
+
+        // Rotate 90° CW so portrait screen matches landscape depth buffer.
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: h, height: w))
+        return renderer.image { ctx in
+            ctx.cgContext.translateBy(x: CGFloat(h), y: 0)
+            ctx.cgContext.rotate(by: .pi / 2)
+            ctx.cgContext.draw(cgImg, in: CGRect(x: 0, y: 0, width: w, height: h))
+        }
     }
 }
 
@@ -287,9 +389,17 @@ extension RoomScanViewModel: RoomCaptureSessionDelegate {
             do {
                 let builder = RoomBuilder(options: [.beautifyObjects])
                 let room = try await builder.capturedRoom(from: data)
-                let record = try ScanStore.shared.save(room: room)
+
+                var depthImage: UIImage?
+                if wantsDepthCapture {
+                    depthImage = await captureOneDepthFrame()
+                    wantsDepthCapture = false
+                }
+
+                let record = try ScanStore.shared.save(room: room, depthImage: depthImage)
                 capturedRoom = room
                 exportURL = record.url
+                depthImageURL = record.depthURL
                 phase = .done
             } catch {
                 errorMessage = error.localizedDescription
@@ -305,9 +415,11 @@ extension RoomScanViewModel: RoomCaptureSessionDelegate {
 struct ModelViewerView: View {
     let capturedRoom: CapturedRoom?   // nil when opened from scan history
     let exportURL: URL?
+    var depthImageURL: URL? = nil
     let onNewScan: () -> Void
 
     @State private var quickLookURL: URL?
+    @State private var depthImage: UIImage?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -329,20 +441,18 @@ struct ModelViewerView: View {
                             .foregroundStyle(.white)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 8)
-                            .background(.ultraThinMaterial, in: Capsule())
-                            .shadow(color: .black.opacity(0.5), radius: 24, y: 8)
+                            .background(Color(white: 0.12), in: Capsule())
                     }
 
                     Spacer()
 
-                    Text("Room Model")
+                    Text("room model")
                         .font(.system(size: 11, weight: .medium))
                         .tracking(1.0)
                         .foregroundStyle(.white.opacity(DS.textTertiary))
                         .padding(.horizontal, 14)
                         .padding(.vertical, 8)
-                        .background(.ultraThinMaterial, in: Capsule())
-                        .shadow(color: .black.opacity(0.5), radius: 24, y: 8)
+                        .background(Color(white: 0.12), in: Capsule())
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
@@ -354,6 +464,12 @@ struct ModelViewerView: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .quickLookPreview($quickLookURL)
+        .task {
+            if let url = depthImageURL,
+               let data = try? Data(contentsOf: url) {
+                depthImage = UIImage(data: data)
+            }
+        }
     }
 
     private var bottomSheet: some View {
@@ -361,38 +477,54 @@ struct ModelViewerView: View {
             if let capturedRoom {
                 roomStats(for: capturedRoom)
             }
+            if let img = depthImage {
+                depthThumbnail(img)
+            }
             actionButtons
         }
         .padding(.horizontal, 24)
         .padding(.top, 24)
         .padding(.bottom, 36)
         .background(
-            .regularMaterial,
+            Color.black,
             in: UnevenRoundedRectangle(
                 topLeadingRadius: 28, bottomLeadingRadius: 0,
                 bottomTrailingRadius: 0, topTrailingRadius: 28,
                 style: .continuous
             )
         )
-        .overlay(
-            UnevenRoundedRectangle(
-                topLeadingRadius: 28, bottomLeadingRadius: 0,
-                bottomTrailingRadius: 0, topTrailingRadius: 28,
-                style: .continuous
-            )
-            .strokeBorder(.white.opacity(DS.borderSubtle), lineWidth: 1)
-        )
+    }
+
+    private func depthThumbnail(_ img: UIImage) -> some View {
+        HStack(spacing: 12) {
+            Image(uiImage: img)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(height: 64)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            VStack(alignment: .leading, spacing: 4) {
+                Text("depth snapshot")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.white)
+                Text("raw lidar depth · jet colormap")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.4))
+            }
+            Spacer()
+        }
+        .padding(12)
+        .background(Color(white: 0.07), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private func roomStats(for room: CapturedRoom) -> some View {
         HStack(spacing: 0) {
-            statItem(value: "\(room.walls.count)", label: "Walls")
+            statItem(value: "\(room.walls.count)", label: "walls")
             statDivider
-            statItem(value: "\(room.doors.count)", label: "Doors")
+            statItem(value: "\(room.doors.count)", label: "doors")
             statDivider
-            statItem(value: "\(room.windows.count)", label: "Windows")
+            statItem(value: "\(room.windows.count)", label: "windows")
             statDivider
-            statItem(value: "\(room.objects.count)", label: "Objects")
+            statItem(value: "\(room.objects.count)", label: "objects")
         }
     }
 
@@ -422,12 +554,12 @@ struct ModelViewerView: View {
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     quickLookURL = url
                 }) {
-                    Label("View in AR / QuickLook", systemImage: "arkit")
-                        .font(.headline)
+                    Label("view in ar / quicklook", systemImage: "arkit")
+                        .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(.black)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
-                        .background(Color.accent, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .background(Color.accent, in: Capsule())
                 }
 
                 ShareLink(
@@ -435,21 +567,30 @@ struct ModelViewerView: View {
                     subject: Text("Room Scan"),
                     message: Text("Scanned with TruDepth")
                 ) {
-                    Label("Export USDZ", systemImage: "square.and.arrow.up")
-                        .font(.headline)
+                    Label("export usdz", systemImage: "square.and.arrow.up")
+                        .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
-                        .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .strokeBorder(.white.opacity(DS.borderDefault), lineWidth: 1)
-                        )
+                        .background(Color(white: 0.1), in: Capsule())
+                }
+
+                if let depthURL = depthImageURL {
+                    ShareLink(item: depthURL,
+                              subject: Text("Depth Snapshot"),
+                              message: Text("LiDAR depth · Scanned with TruDepth")) {
+                        Label("export depth png", systemImage: "camera.aperture")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(Color(white: 0.1), in: Capsule())
+                    }
                 }
             }
 
             Button(action: onNewScan) {
-                Text("Scan Again")
+                Text("scan again")
                     .font(.caption)
                     .foregroundStyle(.white.opacity(DS.textTertiary))
                     .padding(.top, 4)
@@ -521,19 +662,42 @@ final class ScanStore: ObservableObject {
         scans = records.filter { FileManager.default.fileExists(atPath: $0.url.path) }
     }
 
-    func save(room: CapturedRoom) throws -> ScanRecord {
+    func save(room: CapturedRoom, depthImage: UIImage? = nil) throws -> ScanRecord {
         let id = UUID()
         let filename = "\(id.uuidString).usdz"
         let url = directory.appendingPathComponent(filename)
         try room.export(to: url)
-        let record = ScanRecord(id: id, date: Date(), filename: filename)
+
+        var depthFilename: String?
+        if let depthImage, let pngData = depthImage.pngData() {
+            let df = "\(id.uuidString)_depth.png"
+            try pngData.write(to: directory.appendingPathComponent(df), options: .atomic)
+            depthFilename = df
+        }
+
+        let record = ScanRecord(id: id, date: Date(), filename: filename, depthFilename: depthFilename)
         DispatchQueue.main.async { self.scans.append(record) }
         try persist()
         return record
     }
 
+    func saveObject(exportURL: URL) throws {
+        let filename = exportURL.lastPathComponent
+        let dest = directory.appendingPathComponent(filename)
+        if exportURL != dest {
+            try? FileManager.default.moveItem(at: exportURL, to: dest)
+        }
+        let record = ScanRecord(id: UUID(), date: Date(), filename: filename,
+                                depthFilename: nil, scanType: .object)
+        DispatchQueue.main.async { self.scans.append(record) }
+        try persist()
+    }
+
     func delete(_ record: ScanRecord) {
         try? FileManager.default.removeItem(at: record.url)
+        if let depthURL = record.depthURL {
+            try? FileManager.default.removeItem(at: depthURL)
+        }
         scans.removeAll { $0.id == record.id }
         try? persist()
     }
@@ -544,18 +708,27 @@ final class ScanStore: ObservableObject {
     }
 }
 
+// MARK: - Scan Type
+
+enum ScanType: String, Codable { case room, object }
+
 // MARK: - Scan Record
 
 struct ScanRecord: Identifiable, Codable {
     let id: UUID
     let date: Date
+    let scanType: ScanType
     private let filename: String
+    private let depthFilename: String?
 
-    // URL is always derived from current Documents path — safe across reinstalls.
-    var url: URL {
+    private static func scansDirectory() -> URL {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        return docs.appendingPathComponent("TruDepthScans").appendingPathComponent(filename)
+        return docs.appendingPathComponent("TruDepthScans")
     }
+
+    // URLs are always derived from current Documents path — safe across reinstalls.
+    var url: URL { Self.scansDirectory().appendingPathComponent(filename) }
+    var depthURL: URL? { depthFilename.map { Self.scansDirectory().appendingPathComponent($0) } }
 
     var formattedDate: String {
         date.formatted(date: .abbreviated, time: .shortened)
@@ -567,9 +740,24 @@ struct ScanRecord: Identifiable, Codable {
         return ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
 
-    init(id: UUID = UUID(), date: Date = Date(), filename: String) {
+    init(id: UUID = UUID(), date: Date = Date(), filename: String,
+         depthFilename: String? = nil, scanType: ScanType = .room) {
         self.id = id
         self.date = date
         self.filename = filename
+        self.depthFilename = depthFilename
+        self.scanType = scanType
+    }
+
+    // Backward-compatible decode: old records without scanType default to .room.
+    enum CodingKeys: String, CodingKey { case id, date, filename, depthFilename, scanType }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id           = try c.decode(UUID.self, forKey: .id)
+        date         = try c.decode(Date.self, forKey: .date)
+        filename     = try c.decode(String.self, forKey: .filename)
+        depthFilename = try c.decodeIfPresent(String.self, forKey: .depthFilename)
+        scanType     = try c.decodeIfPresent(ScanType.self, forKey: .scanType) ?? .room
     }
 }

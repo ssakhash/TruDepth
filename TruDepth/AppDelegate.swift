@@ -16,6 +16,7 @@ struct TruDepthApp: App {
 struct RootView: View {
     @State private var selectedTab = 0
     @State private var showScanSheet = false
+    @State private var showObjectScanSheet = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -33,6 +34,11 @@ struct RootView: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
+        .sheet(isPresented: $showObjectScanSheet) {
+            ObjectScanView()
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
     }
 
     @ViewBuilder
@@ -40,7 +46,7 @@ struct RootView: View {
         switch selectedTab {
         case 0:
             NavigationStack {
-                HomeView(showScanSheet: $showScanSheet)
+                HomeView(showScanSheet: $showScanSheet, showObjectScanSheet: $showObjectScanSheet)
             }
             .transition(.opacity)
         case 1:
@@ -53,7 +59,7 @@ struct RootView: View {
             .transition(.opacity)
         default:
             NavigationStack {
-                HomeView(showScanSheet: $showScanSheet)
+                HomeView(showScanSheet: $showScanSheet, showObjectScanSheet: $showObjectScanSheet)
             }
         }
     }
@@ -91,9 +97,8 @@ struct FloatingTabBar: View {
             }
         }
         .padding(6)
-        .background(.regularMaterial, in: Capsule())
-        .overlay(Capsule().strokeBorder(.white.opacity(DS.borderSubtle), lineWidth: 1))
-        .shadow(color: .black.opacity(0.5), radius: 24, y: 8)
+        .background(Color.black, in: Capsule())
+        .overlay(Capsule().strokeBorder(.white.opacity(0.1), lineWidth: 1))
     }
 }
 
@@ -129,6 +134,7 @@ private struct TabBarItem: View {
 
 struct HomeView: View {
     @Binding var showScanSheet: Bool
+    @Binding var showObjectScanSheet: Bool
     @ObservedObject private var scanStore = ScanStore.shared
 
     var body: some View {
@@ -160,11 +166,11 @@ struct HomeView: View {
         VStack(spacing: 0) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("TRUDEPTH")
+                    Text("trudepth")
                         .font(.system(size: 42, weight: .thin))
                         .tracking(0.5)
                         .foregroundStyle(.white)
-                    Text("LiDAR  ·  Depth  ·  Room Scanning")
+                    Text("lidar  ·  depth  ·  room scanning")
                         .font(.system(size: 13, weight: .regular))
                         .tracking(2.0)
                         .foregroundStyle(.white.opacity(DS.textTertiary))
@@ -176,14 +182,12 @@ struct HomeView: View {
                 }) {
                     ZStack {
                         Circle()
-                            .fill(.regularMaterial)
+                            .fill(Color(white: 0.1))
                             .frame(width: 44, height: 44)
-                            .overlay(Circle().strokeBorder(.white.opacity(DS.borderSubtle), lineWidth: 1))
                         Image(systemName: "plus")
                             .font(.system(size: 18, weight: .medium))
-                            .foregroundStyle(Color.accent)
+                            .foregroundStyle(.white.opacity(0.7))
                     }
-                    .shadow(color: .black.opacity(0.4), radius: 12, y: 4)
                 }
             }
             // Cyan hairline accent
@@ -217,6 +221,16 @@ struct HomeView: View {
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                 }
             )
+
+            FeatureCard(
+                icon: "cube.transparent",
+                title: "Scan Item",
+                subtitle: "Capture an object's 3D shape and measurements",
+                action: {
+                    showObjectScanSheet = true
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                }
+            )
         }
     }
 
@@ -237,7 +251,7 @@ struct HomeView: View {
 
             ForEach(scanStore.scans.reversed().prefix(3)) { scan in
                 NavigationLink(
-                    destination: ModelViewerView(capturedRoom: nil, exportURL: scan.url, onNewScan: {})
+                    destination: ModelViewerView(capturedRoom: nil, exportURL: scan.url, depthImageURL: scan.depthURL, onNewScan: {})
                 ) {
                     ScanRow(record: scan)
                 }
@@ -247,7 +261,7 @@ struct HomeView: View {
     }
 
     private func sectionLabel(_ text: String) -> some View {
-        Text(text)
+        Text(text.lowercased())
             .font(.system(size: 11, weight: .medium))
             .tracking(1.0)
             .foregroundStyle(.white.opacity(DS.textTertiary))
@@ -279,7 +293,7 @@ struct ScanHistoryView: View {
 
     private var titleBar: some View {
         HStack {
-            Text("HISTORY")
+            Text("history")
                 .font(.system(size: 28, weight: .thin))
                 .tracking(0.5)
                 .foregroundStyle(.white)
@@ -290,10 +304,9 @@ struct ScanHistoryView: View {
             }) {
                 Image(systemName: "plus")
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(Color.accent)
+                    .foregroundStyle(.white.opacity(0.7))
                     .frame(width: 36, height: 36)
-                    .background(.regularMaterial, in: Circle())
-                    .overlay(Circle().strokeBorder(.white.opacity(DS.borderSubtle), lineWidth: 1))
+                    .background(Color(white: 0.1), in: Circle())
             }
         }
         .padding(.horizontal, 20)
@@ -306,7 +319,7 @@ struct ScanHistoryView: View {
             LazyVStack(spacing: 0) {
                 ForEach(scanStore.scans.reversed()) { scan in
                     NavigationLink(
-                        destination: ModelViewerView(capturedRoom: nil, exportURL: scan.url, onNewScan: {})
+                        destination: ModelViewerView(capturedRoom: nil, exportURL: scan.url, depthImageURL: scan.depthURL, onNewScan: {})
                     ) {
                         ScanRow(record: scan)
                             .padding(.horizontal, 20)
@@ -403,36 +416,27 @@ struct FeatureCard<Destination: View>: View {
         HStack(spacing: 16) {
             ZStack {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color.accent.opacity(0.12))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .strokeBorder(Color.accent.opacity(0.2), lineWidth: 1)
-                    )
+                    .fill(.white.opacity(0.08))
                     .frame(width: 44, height: 44)
                 Image(systemName: icon)
                     .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(Color.accent)
+                    .foregroundStyle(.white.opacity(0.7))
             }
             VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.system(size: 17, weight: .semibold))
+                Text(title.lowercased())
+                    .font(.system(size: 20, weight: .light))
                     .foregroundStyle(.white)
-                Text(subtitle)
-                    .font(.system(size: 16))
-                    .foregroundStyle(.white.opacity(0.5))
+                Text(subtitle.lowercased())
+                    .font(.system(size: 14))
+                    .foregroundStyle(.white.opacity(0.4))
             }
             Spacer()
             Image(systemName: "arrow.right")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(.white.opacity(DS.textTertiary))
+                .font(.system(size: 14, weight: .light))
+                .foregroundStyle(.white.opacity(0.3))
         }
         .padding(20)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .strokeBorder(.white.opacity(DS.borderDefault), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.25), radius: 12, y: 4)
+        .background(Color(white: 0.07), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 }
 
@@ -452,11 +456,11 @@ struct ScanRow: View {
         HStack(spacing: 16) {
             ZStack {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(.regularMaterial)
+                    .fill(Color(white: 0.1))
                     .frame(width: 52, height: 52)
-                Image(systemName: "house")
+                Image(systemName: record.scanType == .object ? "cube.transparent" : "house")
                     .font(.system(size: 20, weight: .light))
-                    .foregroundStyle(Color.accent)
+                    .foregroundStyle(.white.opacity(0.6))
             }
             VStack(alignment: .leading, spacing: 4) {
                 Text(record.formattedDate)

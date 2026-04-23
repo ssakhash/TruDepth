@@ -15,6 +15,10 @@ struct LiveMeshView: View {
             if viewModel.isSupported {
                 ARMeshContainer(viewModel: viewModel)
                     .ignoresSafeArea()
+                // Black backdrop so jet-color heatmap pops against dark background in depth mode.
+                if viewModel.visualization == .depth {
+                    Color.black.ignoresSafeArea()
+                }
                 // Metal heatmap overlay — always in hierarchy; renderer controls visibility.
                 MTKHeatmapView(renderer: viewModel.heatmapRenderer)
                     .ignoresSafeArea()
@@ -41,14 +45,13 @@ struct LiveMeshView: View {
 
     private var topBar: some View {
         HStack(alignment: .center) {
-            Text("LIVE DEPTH")
+            Text("live depth")
                 .font(.system(size: 11, weight: .medium))
                 .tracking(1.0)
                 .foregroundStyle(.white.opacity(DS.textTertiary))
                 .padding(.horizontal, 14)
                 .padding(.vertical, 7)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .shadow(color: .black.opacity(0.5), radius: 24, y: 8)
+                .background(Color.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
             Spacer()
 
@@ -71,9 +74,7 @@ struct LiveMeshView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 7)
-        .background(.ultraThinMaterial, in: Capsule())
-        .shadow(color: viewModel.distanceIsNear ? Color.accent.opacity(0.35) : .black.opacity(0.5),
-                radius: 12, y: 0)
+        .background(Color.black.opacity(0.6), in: Capsule())
         .animation(.easeInOut(duration: 0.3), value: viewModel.distanceIsNear)
     }
 
@@ -82,8 +83,7 @@ struct LiveMeshView: View {
             .font(.callout)
             .foregroundStyle(.white)
             .padding(16)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .shadow(color: .black.opacity(0.5), radius: 24, y: 8)
+            .background(Color(white: 0.1), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .padding(.bottom, 16)
     }
 
@@ -130,8 +130,7 @@ struct LiveMeshView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .shadow(color: .black.opacity(0.5), radius: 24, y: 8)
+        .background(Color(white: 0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .padding(.horizontal, 24)
     }
 }
@@ -151,13 +150,13 @@ private struct CustomSegmentedControl: View {
                     }
                 }) {
                     Text(options[idx])
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(selectedIndex == idx ? .white : .white.opacity(DS.textSecondary))
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
+                        .padding(.vertical, 10)
                         .background(
                             Capsule()
-                                .fill(.white.opacity(selectedIndex == idx ? 0.12 : 0))
+                                .fill(.white.opacity(selectedIndex == idx ? 0.15 : 0))
                                 .animation(.spring(response: 0.35, dampingFraction: 0.7), value: selectedIndex)
                         )
                 }
@@ -165,8 +164,7 @@ private struct CustomSegmentedControl: View {
             }
         }
         .padding(4)
-        .background(.ultraThinMaterial, in: Capsule())
-        .shadow(color: .black.opacity(0.5), radius: 24, y: 8)
+        .background(Color(white: 0.1), in: Capsule())
     }
 }
 
@@ -177,9 +175,9 @@ enum MeshVisualization: CaseIterable {
 
     var label: String {
         switch self {
-        case .classification: "Classify"
-        case .wireframe:      "Wireframe"
-        case .depth:          "Depth"
+        case .classification: "classify"
+        case .wireframe:      "wireframe"
+        case .depth:          "depth"
         }
     }
 }
@@ -259,52 +257,14 @@ final class LiveMeshViewModel: ObservableObject {
             arView.environment.sceneUnderstanding.options = [.occlusion]
             heatmapRenderer.mtkView?.isHidden = true
         case .wireframe:
-            arView.debugOptions = [.showSceneUnderstanding, .showAnchorGeometry]
-            arView.environment.sceneUnderstanding.options = [.occlusion]
+            arView.debugOptions = [.showAnchorGeometry]
+            arView.environment.sceneUnderstanding.options = []
             heatmapRenderer.mtkView?.isHidden = true
         case .depth:
             arView.debugOptions = []
             arView.environment.sceneUnderstanding.options = []
-            colorMeshByDepth()
             heatmapRenderer.mtkView?.isHidden = false
         }
-    }
-
-    // MARK: - Depth mode mesh coloring (camera-relative distance)
-
-    private func colorMeshByDepth() {
-        guard let frame = arView.session.currentFrame else { return }
-        let anchors = frame.anchors.compactMap { $0 as? ARMeshAnchor }
-        let cameraPos = arView.cameraTransform.translation
-
-        // Pre-compute anchor distances on main actor before handing off to background.
-        let anchorDistances: [(String, Float)] = anchors.map { anchor in
-            let p = anchor.transform.columns.3
-            let dist = simd_distance(cameraPos, simd_float3(p.x, p.y, p.z))
-            return (anchor.identifier.uuidString, dist)
-        }
-
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self else { return }
-            let updates: [(String, UIColor)] = anchorDistances.map { (name, dist) in
-                (name, Self.jetColor(for: dist))
-            }
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                for (name, color) in updates {
-                    guard let entity = self.arView.scene.findEntity(named: name) as? ModelEntity
-                    else { continue }
-                    var mat = UnlitMaterial()
-                    mat.color = .init(tint: color)
-                    entity.model?.materials = [mat]
-                }
-            }
-        }
-    }
-
-    private static func jetColor(for distance: Float) -> UIColor {
-        let t = Double(max(0, min(1, distance / 5.0)))
-        return UIColor(hue: 0.67 * (1.0 - t), saturation: 0.9, brightness: 1.0, alpha: 0.85)
     }
 
     // MARK: - Center distance polling (off main thread)
