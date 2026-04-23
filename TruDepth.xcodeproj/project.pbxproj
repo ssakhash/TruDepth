@@ -14,6 +14,7 @@
 		727D62282A0EF82D0069C10E /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 727D62272A0EF82D0069C10E /* AppDelegate.swift */; };
 		727D622A2A0EF82D0069C10E /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 727D62292A0EF82D0069C10E /* SceneDelegate.swift */; };
 		727D622C2A0EF82D0069C10E /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 727D622B2A0EF82D0069C10E /* ViewController.swift */; };
+		BB0B00022A0EF82D0069C10E /* ObjectScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0B00012A0EF82D0069C10E /* ObjectScanView.swift */; };
 		727D622F2A0EF82D0069C10E /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 727D622D2A0EF82D0069C10E /* Main.storyboard */; };
 		727D62322A0EF82D0069C10E /* TruDepth.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = 727D62302A0EF82D0069C10E /* TruDepth.xcdatamodeld */; };
 		727D62342A0EF82F0069C10E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 727D62332A0EF82F0069C10E /* Assets.xcassets */; };
@@ -29,6 +30,7 @@
 		727D62272A0EF82D0069C10E /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		727D62292A0EF82D0069C10E /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		727D622B2A0EF82D0069C10E /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
+		BB0B00012A0EF82D0069C10E /* ObjectScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObjectScanView.swift; sourceTree = "<group>"; };
 		727D622E2A0EF82D0069C10E /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		727D62312A0EF82D0069C10E /* TruDepth.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = TruDepth.xcdatamodel; sourceTree = "<group>"; };
 		727D62332A0EF82F0069C10E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -85,6 +87,7 @@
 				727D62272A0EF82D0069C10E /* AppDelegate.swift */,
 				727D62292A0EF82D0069C10E /* SceneDelegate.swift */,
 				727D622B2A0EF82D0069C10E /* ViewController.swift */,
+				BB0B00012A0EF82D0069C10E /* ObjectScanView.swift */,
 				727D622D2A0EF82D0069C10E /* Main.storyboard */,
 				727D62332A0EF82F0069C10E /* Assets.xcassets */,
 				727D62352A0EF82F0069C10E /* LaunchScreen.storyboard */,
@@ -169,6 +172,7 @@
 				727D62322A0EF82D0069C10E /* TruDepth.xcdatamodeld in Sources */,
 				727D62282A0EF82D0069C10E /* AppDelegate.swift in Sources */,
 				727D622A2A0EF82D0069C10E /* SceneDelegate.swift in Sources */,
+				BB0B00022A0EF82D0069C10E /* ObjectScanView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
