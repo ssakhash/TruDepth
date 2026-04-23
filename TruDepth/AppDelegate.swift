@@ -11,268 +11,109 @@ struct TruDepthApp: App {
     }
 }
 
-// MARK: - Root (Tab Container)
+// MARK: - Root
 
 struct RootView: View {
-    @State private var selectedTab = 0
-    @State private var showScanSheet = false
-    @State private var showObjectScanSheet = false
-
     var body: some View {
-        ZStack(alignment: .bottom) {
-            Color.black.ignoresSafeArea()
-
-            tabContent
-                .animation(.easeInOut(duration: 0.2), value: selectedTab)
-
-            FloatingTabBar(selectedTab: $selectedTab)
-                .padding(.bottom, 8)
-        }
-        .preferredColorScheme(.dark)
-        .sheet(isPresented: $showScanSheet) {
-            RoomScanView()
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
-        }
-        .sheet(isPresented: $showObjectScanSheet) {
-            ObjectScanView()
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
-        }
-    }
-
-    @ViewBuilder
-    private var tabContent: some View {
-        switch selectedTab {
-        case 0:
-            NavigationStack {
-                HomeView(showScanSheet: $showScanSheet, showObjectScanSheet: $showObjectScanSheet)
-            }
-            .transition(.opacity)
-        case 1:
-            LiveMeshView()
-                .transition(.opacity)
-        case 2:
-            NavigationStack {
-                ScanHistoryView(showScanSheet: $showScanSheet)
-            }
-            .transition(.opacity)
-        default:
-            NavigationStack {
-                HomeView(showScanSheet: $showScanSheet, showObjectScanSheet: $showObjectScanSheet)
-            }
-        }
-    }
-}
-
-// MARK: - Floating Tab Bar
-
-private struct TabConfig {
-    let icon: String
-    let label: String
-}
-
-private let tabConfigs: [TabConfig] = [
-    TabConfig(icon: "house", label: "Home"),
-    TabConfig(icon: "cube.fill", label: "Depth"),
-    TabConfig(icon: "clock", label: "History"),
-]
-
-struct FloatingTabBar: View {
-    @Binding var selectedTab: Int
-
-    var body: some View {
-        HStack(spacing: 0) {
-            ForEach(tabConfigs.indices, id: \.self) { index in
-                TabBarItem(
-                    icon: tabConfigs[index].icon,
-                    label: tabConfigs[index].label,
-                    isSelected: selectedTab == index
-                ) {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                        selectedTab = index
-                    }
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                }
-            }
-        }
-        .padding(6)
-        .background(Color.black, in: Capsule())
-        .overlay(Capsule().strokeBorder(.white.opacity(0.1), lineWidth: 1))
-    }
-}
-
-private struct TabBarItem: View {
-    let icon: String
-    let label: String
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 3) {
-                Image(systemName: icon)
-                    .font(.system(size: 18, weight: .medium))
-                Text(label)
-                    .font(.system(size: 11, weight: .medium))
-                    .tracking(0.5)
-            }
-            .foregroundStyle(isSelected ? Color.accent : .white.opacity(DS.textTertiary))
-            .frame(minWidth: 64)
-            .padding(.vertical, 10)
-            .background(
-                Capsule()
-                    .fill(.white.opacity(isSelected ? 0.1 : 0))
-                    .animation(.spring(response: 0.35, dampingFraction: 0.7), value: isSelected)
-            )
-        }
-        .buttonStyle(.plain)
+        HomeView()
+            .preferredColorScheme(.dark)
     }
 }
 
 // MARK: - Home View
 
 struct HomeView: View {
-    @Binding var showScanSheet: Bool
-    @Binding var showObjectScanSheet: Bool
-    @ObservedObject private var scanStore = ScanStore.shared
+    @State private var showDepth = false
+    @State private var showRoom = false
+    @State private var showItem = false
+    @State private var showHistory = false
+    @State private var showSearch = false
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            ScrollView {
-                VStack(spacing: 0) {
-                    header
-                        .padding(.top, 64)
-                    featureSection
-                        .padding(.top, 48)
-                    if !scanStore.scans.isEmpty {
-                        recentSection
-                            .padding(.top, 40)
-                    }
-                    Spacer(minLength: 120)
-                }
-                .padding(.horizontal, 20)
-            }
-            .scrollIndicators(.hidden)
-        }
-        .toolbar(.hidden, for: .navigationBar)
-    }
-
-    // MARK: Header
-
-    private var header: some View {
-        VStack(spacing: 0) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("trudepth")
-                        .font(.system(size: 42, weight: .thin))
-                        .tracking(0.5)
-                        .foregroundStyle(.white)
-                    Text("lidar  ·  depth  ·  room scanning")
-                        .font(.system(size: 13, weight: .regular))
-                        .tracking(2.0)
-                        .foregroundStyle(.white.opacity(DS.textTertiary))
-                }
+            VStack(spacing: 0) {
                 Spacer()
-                Button(action: {
-                    showScanSheet = true
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                }) {
-                    ZStack {
-                        Circle()
-                            .fill(Color(white: 0.1))
-                            .frame(width: 44, height: 44)
-                        Image(systemName: "plus")
-                            .font(.system(size: 18, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.7))
-                    }
-                }
-            }
-            // Cyan hairline accent
-            Rectangle()
-                .fill(Color.accent)
-                .frame(width: 24, height: 1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, 12)
-        }
-    }
 
-    // MARK: Features
+                Text(weekdayString)
+                    .font(.system(size: 36, weight: .thin))
+                    .tracking(5)
+                    .foregroundStyle(.white)
 
-    private var featureSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            sectionLabel("FEATURES")
+                Text(dateString)
+                    .font(.system(size: 22, weight: .thin))
+                    .tracking(3)
+                    .foregroundStyle(.white.opacity(0.45))
+                    .padding(.top, 6)
 
-            FeatureCard(
-                icon: "cube.transparent.fill",
-                title: "Live Depth",
-                subtitle: "Real-time LiDAR mesh visualization",
-                destination: { LiveMeshView() }
-            )
+                Spacer().frame(height: 80)
 
-            FeatureCard(
-                icon: "house.fill",
-                title: "Scan Room",
-                subtitle: "Capture and export a 3D room model",
-                action: {
-                    showScanSheet = true
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                }
-            )
+                navItem("depth") { showDepth = true }
+                navItem("room") { showRoom = true }
+                navItem("item") { showItem = true }
+                navItem("history") { showHistory = true }
 
-            FeatureCard(
-                icon: "cube.transparent",
-                title: "Scan Item",
-                subtitle: "Capture an object's 3D shape and measurements",
-                action: {
-                    showObjectScanSheet = true
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                }
-            )
-        }
-    }
-
-    // MARK: Recent
-
-    private var recentSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .center) {
-                sectionLabel("RECENT")
                 Spacer()
-                Text("\(scanStore.scans.count)")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Color.accent)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(Color.accent.opacity(0.15), in: Capsule())
-            }
 
-            ForEach(scanStore.scans.reversed().prefix(3)) { scan in
-                NavigationLink(
-                    destination: ModelViewerView(capturedRoom: nil, exportURL: scan.url, depthImageURL: scan.depthURL, onNewScan: {})
-                ) {
-                    ScanRow(record: scan)
+                Button {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    showSearch = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 10, weight: .light))
+                        Text("search")
+                            .font(.system(size: 11, weight: .light))
+                            .tracking(2)
+                    }
+                    .foregroundStyle(.white.opacity(0.28))
                 }
                 .buttonStyle(.plain)
+
+                Spacer().frame(height: 44)
             }
+            .multilineTextAlignment(.center)
         }
+        .fullScreenCover(isPresented: $showDepth) { LiveMeshView() }
+        .fullScreenCover(isPresented: $showRoom) { RoomScanView() }
+        .fullScreenCover(isPresented: $showItem) { ObjectScanView() }
+        .fullScreenCover(isPresented: $showHistory) {
+            NavigationStack { ScanHistoryView() }
+        }
+        .sheet(isPresented: $showSearch) { SearchHistoryView() }
     }
 
-    private func sectionLabel(_ text: String) -> some View {
-        Text(text.lowercased())
-            .font(.system(size: 11, weight: .medium))
-            .tracking(1.0)
-            .foregroundStyle(.white.opacity(DS.textTertiary))
+    private var weekdayString: String {
+        Date().formatted(.dateTime.weekday(.wide))
+    }
+
+    private var dateString: String {
+        Date().formatted(.dateTime.month(.wide).day())
+    }
+
+    private func navItem(_ label: String, action: @escaping () -> Void) -> some View {
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            action()
+        } label: {
+            Text(label)
+                .font(.system(size: 26, weight: .thin))
+                .tracking(5)
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: 72)
+        }
+        .buttonStyle(.plain)
     }
 }
 
 // MARK: - Scan History View
 
 struct ScanHistoryView: View {
-    @Binding var showScanSheet: Bool
+    @State private var showScanSheet = false
     @ObservedObject private var scanStore = ScanStore.shared
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ZStack {
@@ -289,10 +130,24 @@ struct ScanHistoryView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .sheet(isPresented: $showScanSheet) {
+            RoomScanView()
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
     }
 
     private var titleBar: some View {
         HStack {
+            Button(action: {
+                dismiss()
+            }) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 16, weight: .light))
+                    .foregroundStyle(.white.opacity(0.7))
+                    .frame(width: 36, height: 36)
+            }
+            Spacer()
             Text("history")
                 .font(.system(size: 28, weight: .thin))
                 .tracking(0.5)
@@ -489,6 +344,77 @@ enum DS {
     static let borderSubtle: Double  = 0.08
     static let borderDefault: Double = 0.14
     static let separator: Double     = 0.06
+}
+
+// MARK: - Search History View
+
+struct SearchHistoryView: View {
+    @State private var query = ""
+    @ObservedObject private var store = ScanStore.shared
+    @Environment(\.dismiss) private var dismiss
+
+    private var results: [ScanRecord] {
+        let all = Array(store.scans.reversed())
+        guard !query.isEmpty else { return all }
+        return all.filter {
+            $0.formattedDate.localizedCaseInsensitiveContains(query) ||
+            $0.scanType.rawValue.localizedCaseInsensitiveContains(query)
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color.black.ignoresSafeArea()
+                VStack(spacing: 0) {
+                    TextField("search scans", text: $query)
+                        .font(.system(size: 22, weight: .thin))
+                        .tracking(3)
+                        .foregroundStyle(.white)
+                        .tint(.white)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                        .padding(.top, 56)
+                        .padding(.bottom, 32)
+
+                    if results.isEmpty {
+                        Spacer()
+                        Text("no results")
+                            .font(.system(size: 16, weight: .thin))
+                            .tracking(3)
+                            .foregroundStyle(.white.opacity(0.28))
+                        Spacer()
+                    } else {
+                        ScrollView {
+                            LazyVStack(spacing: 0) {
+                                ForEach(results) { scan in
+                                    NavigationLink(destination: ModelViewerView(capturedRoom: nil, exportURL: scan.url, depthImageURL: scan.depthURL, onNewScan: {})) {
+                                        VStack(spacing: 4) {
+                                            Text(scan.scanType.rawValue)
+                                                .font(.system(size: 18, weight: .thin))
+                                                .tracking(4)
+                                                .foregroundStyle(.white)
+                                            Text(scan.formattedDate)
+                                                .font(.system(size: 13, weight: .thin))
+                                                .tracking(2)
+                                                .foregroundStyle(.white.opacity(0.4))
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .frame(height: 72)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                Spacer(minLength: 40)
+                            }
+                        }
+                        .scrollIndicators(.hidden)
+                    }
+                }
+            }
+            .toolbar(.hidden, for: .navigationBar)
+        }
+        .preferredColorScheme(.dark)
+    }
 }
 
 // MARK: - Colour Extensions
