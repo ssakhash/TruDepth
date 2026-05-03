@@ -23,6 +23,7 @@ struct LiveMeshView: View {
                 MTKHeatmapView(renderer: viewModel.heatmapRenderer)
                     .ignoresSafeArea()
                     .allowsHitTesting(false)
+                    .rotationEffect(.degrees(viewModel.visualization == .depth ? 180 : 0))
             } else {
                 Color.black.ignoresSafeArea()
             }
@@ -45,6 +46,18 @@ struct LiveMeshView: View {
 
     private var topBar: some View {
         HStack(alignment: .center) {
+            Button(action: { dismiss() }) {
+                Text("main menu")
+                    .font(.system(size: 11, weight: .medium))
+                    .tracking(0.6)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 7)
+                    .background(Color.black.opacity(0.6), in: Capsule())
+            }
+
+            Spacer()
+
             Text("live depth")
                 .font(.system(size: 11, weight: .medium))
                 .tracking(1.0)
@@ -106,6 +119,12 @@ struct LiveMeshView: View {
             if viewModel.visualization == .depth {
                 depthLegend
                     .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+
+            Button(action: { dismiss() }) {
+                Text("main menu")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(DS.textSecondary))
             }
         }
         .animation(.spring(response: 0.4), value: viewModel.visualization == .depth)
@@ -171,12 +190,11 @@ private struct CustomSegmentedControl: View {
 // MARK: - Visualization Mode
 
 enum MeshVisualization: CaseIterable {
-    case classification, wireframe, depth
+    case classification, depth
 
     var label: String {
         switch self {
         case .classification: "classify"
-        case .wireframe:      "wireframe"
         case .depth:          "depth"
         }
     }
@@ -230,7 +248,7 @@ final class LiveMeshViewModel: ObservableObject {
     @Published var centerDistance: String = "-- m"
     @Published var distanceIsNear: Bool = true
 
-    let isSupported = ARWorldTrackingConfiguration.supportsSceneReconstruction(.meshWithClassification)
+    let isSupported = ScanCapability.liveDepth.isSupported
 
     private var distanceTimer: AnyCancellable?
 
@@ -255,10 +273,6 @@ final class LiveMeshViewModel: ObservableObject {
         case .classification:
             arView.debugOptions = [.showSceneUnderstanding]
             arView.environment.sceneUnderstanding.options = [.occlusion]
-            heatmapRenderer.mtkView?.isHidden = true
-        case .wireframe:
-            arView.debugOptions = [.showAnchorGeometry]
-            arView.environment.sceneUnderstanding.options = []
             heatmapRenderer.mtkView?.isHidden = true
         case .depth:
             arView.debugOptions = []
@@ -325,7 +339,7 @@ private struct UncheckedSendable<T>: @unchecked Sendable {
 
 // MARK: - Metal Depth Heatmap Renderer
 
-final class DepthHeatmapRenderer: NSObject, MTKViewDelegate {
+final class DepthHeatmapRenderer: NSObject, MTKViewDelegate, @unchecked Sendable {
 
     private(set) var device: MTLDevice
     private let commandQueue: MTLCommandQueue
@@ -338,7 +352,7 @@ final class DepthHeatmapRenderer: NSObject, MTKViewDelegate {
     private var pendingDepthTexture: MTLTexture?
 
     var maxDepth: Float = 5.0
-    weak var mtkView: MTKView?
+    @MainActor weak var mtkView: MTKView?
 
     init?(device: MTLDevice) {
         guard let queue = device.makeCommandQueue() else { return nil }
@@ -349,8 +363,10 @@ final class DepthHeatmapRenderer: NSObject, MTKViewDelegate {
     }
 
     // Called once by MTKHeatmapView after the MTKView is created.
+    @MainActor
     func attach(_ view: MTKView) {
         view.device = device
+        view.colorPixelFormat = .bgra8Unorm
         view.delegate = self
         view.isPaused = false
         view.preferredFramesPerSecond = 30
@@ -364,9 +380,13 @@ final class DepthHeatmapRenderer: NSObject, MTKViewDelegate {
     }
 
     private func setupPipeline(pixelFormat: MTLPixelFormat) {
-        guard let library = device.makeDefaultLibrary(),
-              let vertFn  = library.makeFunction(name: "depth_heatmap_vert"),
-              let fragFn  = library.makeFunction(name: "depth_heatmap_frag") else { return }
+        guard let library = device.makeDefaultLibrary() else {
+            fatalError("DepthHeatmap.metal is not compiled into the TruDepth target.")
+        }
+        guard let vertFn = library.makeFunction(name: "depth_heatmap_vert"),
+              let fragFn = library.makeFunction(name: "depth_heatmap_frag") else {
+            fatalError("Missing depth heatmap Metal functions in the default library.")
+        }
 
         let desc = MTLRenderPipelineDescriptor()
         desc.vertexFunction = vertFn
@@ -379,7 +399,11 @@ final class DepthHeatmapRenderer: NSObject, MTKViewDelegate {
         desc.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceAlpha
         desc.colorAttachments[0].sourceAlphaBlendFactor = .one
         desc.colorAttachments[0].destinationAlphaBlendFactor = .zero
-        pipelineState = try? device.makeRenderPipelineState(descriptor: desc)
+        do {
+            pipelineState = try device.makeRenderPipelineState(descriptor: desc)
+        } catch {
+            fatalError("Failed to build the depth heatmap render pipeline: \(error.localizedDescription)")
+        }
     }
 
     // Called from a background thread by LiveMeshViewModel.

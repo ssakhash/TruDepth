@@ -6,9 +6,8 @@ A native iOS app for real-time LiDAR depth visualization, 3D room scanning, and 
 
 ### Live Depth
 - Real-time LiDAR mesh reconstruction rendered via ARKit + RealityKit
-- Three distinct visualization modes:
+- Two visualization modes:
   - **classify** — semantic surface coloring (walls, floors, doors, windows)
-  - **wireframe** — raw LiDAR mesh wire skeleton on live camera passthrough (no surface fill)
   - **depth** — GPU-accelerated jet-colormap heatmap on black background via Metal
 - Center-point distance readout sampled from the raw `sceneDepth` pixel buffer at 150ms intervals
 - Metal heatmap uses a zero-copy `CVMetalTextureCache` path — no CPU roundtrips for the depth overlay
@@ -51,7 +50,6 @@ The app is structured across four source files plus one Metal shader:
 - **`ScanRecord` has a `scanType` field** with backward-compatible Codable decoding (`decodeIfPresent`, defaults to `.room` for old records).
 - **Phase enum has no associated values** — `CapturedRoom` is not `Equatable`, so associated values broke phase comparison. Room data and URLs are separate `@Published` properties on the view model.
 - **Metal heatmap is a separate `MTKView` overlay** — keeps the ARView render loop untouched; in depth mode a `Color.black` layer is inserted between the ARView and the MTKView so jet-color values pop against a dark background.
-- **wireframe mode omits `.showSceneUnderstanding`** — using only `.showAnchorGeometry` prevents the opaque semantic surface fill from hiding the wire edges.
 - **Depth snapshot uses a post-scan ARSession** — RoomPlan's session does not expose its underlying ARSession; after `RoomCaptureSession.stop()` a brief standalone `ARSession` with `.sceneDepth` semantics captures one frame.
 - **Object USDZ export uses ModelIO** — `ARMeshAnchor` vertex positions are transformed to world space and packed into `MDLMesh` / `MDLAsset`, then exported via `MDLAsset.export(to:)`.
 - **`CVPixelBuffer` cross-thread transfer** — wrapped in `UncheckedSendable` with explicit `CVPixelBufferLockBaseAddress`/`Unlock` ownership.
@@ -66,7 +64,7 @@ The app is structured across four source files plus one Metal shader:
 ## Usage
 
 1. **Home** — overview of features and recent scans. Tap any feature card to begin.
-2. **live depth** — enter real-time LiDAR visualization. Use the segmented control to switch between classify, wireframe, and depth modes. The distance badge shows center-frame depth in real time.
+2. **live depth** — enter real-time LiDAR visualization. Use the segmented control to switch between classify and depth modes. The distance badge shows center-frame depth in real time.
 3. **scan room** — walk around a room while RoomPlan builds a 3D model. Tap the aperture button to save a raw depth snapshot. Tap **done** when coverage is complete.
 4. **scan item** — place an object on a flat surface, keep the phone still, and slowly rotate the object. The bounding box readout updates live. Tap **done** to export.
 5. **History** tab — full list of saved room and object scans. Tap any row to open the 3D model viewer. Swipe left to delete, swipe right to share.

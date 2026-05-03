@@ -1,4 +1,6 @@
 import SwiftUI
+import ARKit
+import RoomPlan
 
 // MARK: - Entry Point
 
@@ -20,6 +22,47 @@ struct RootView: View {
     }
 }
 
+// MARK: - Shared Capability Gating
+
+enum ScanCapability: String, Identifiable {
+    case liveDepth
+    case roomScan
+    case objectScan
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .liveDepth: "Live Depth"
+        case .roomScan: "Room Scan"
+        case .objectScan: "Item Scan"
+        }
+    }
+
+    var unsupportedMessage: String {
+        switch self {
+        case .liveDepth:
+            "This feature requires a LiDAR-equipped iPhone with scene reconstruction and depth sensing."
+        case .roomScan:
+            "Room scanning requires a LiDAR-equipped iPhone that supports RoomPlan."
+        case .objectScan:
+            "Item scanning requires a LiDAR-equipped iPhone with mesh reconstruction."
+        }
+    }
+
+    var isSupported: Bool {
+        switch self {
+        case .liveDepth:
+            return ARWorldTrackingConfiguration.supportsSceneReconstruction(.meshWithClassification)
+                && ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth)
+        case .roomScan:
+            return RoomCaptureSession.isSupported
+        case .objectScan:
+            return ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh)
+        }
+    }
+}
+
 // MARK: - Home View
 
 struct HomeView: View {
@@ -27,53 +70,29 @@ struct HomeView: View {
     @State private var showRoom = false
     @State private var showItem = false
     @State private var showHistory = false
-    @State private var showSearch = false
+    @State private var unsupportedFeature: ScanCapability?
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 0) {
                 Spacer()
 
-                Text(weekdayString)
-                    .font(.system(size: 36, weight: .thin))
-                    .tracking(5)
+                Text("trudepth")
+                    .font(.system(size: 42, weight: .regular))
                     .foregroundStyle(.white)
+                    .padding(.leading, 32)
 
-                Text(dateString)
-                    .font(.system(size: 22, weight: .thin))
-                    .tracking(3)
-                    .foregroundStyle(.white.opacity(0.45))
-                    .padding(.top, 6)
+                Spacer().frame(height: 72)
 
-                Spacer().frame(height: 80)
-
-                navItem("depth") { showDepth = true }
-                navItem("room") { showRoom = true }
-                navItem("item") { showItem = true }
-                navItem("history") { showHistory = true }
+                navItem("live depth") { present(.liveDepth) { showDepth = true } }
+                navItem("scan room")  { present(.roomScan) { showRoom = true } }
+                navItem("scan item")  { present(.objectScan) { showItem = true } }
+                navItem("history")    { showHistory = true }
 
                 Spacer()
-
-                Button {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    showSearch = true
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 10, weight: .light))
-                        Text("search")
-                            .font(.system(size: 11, weight: .light))
-                            .tracking(2)
-                    }
-                    .foregroundStyle(.white.opacity(0.28))
-                }
-                .buttonStyle(.plain)
-
-                Spacer().frame(height: 44)
             }
-            .multilineTextAlignment(.center)
         }
         .fullScreenCover(isPresented: $showDepth) { LiveMeshView() }
         .fullScreenCover(isPresented: $showRoom) { RoomScanView() }
@@ -81,15 +100,13 @@ struct HomeView: View {
         .fullScreenCover(isPresented: $showHistory) {
             NavigationStack { ScanHistoryView() }
         }
-        .sheet(isPresented: $showSearch) { SearchHistoryView() }
-    }
-
-    private var weekdayString: String {
-        Date().formatted(.dateTime.weekday(.wide))
-    }
-
-    private var dateString: String {
-        Date().formatted(.dateTime.month(.wide).day())
+        .alert(item: $unsupportedFeature) { feature in
+            Alert(
+                title: Text("\(feature.title) Unavailable"),
+                message: Text(feature.unsupportedMessage),
+                dismissButton: .default(Text("OK"))
+            )
+        }
     }
 
     private func navItem(_ label: String, action: @escaping () -> Void) -> some View {
@@ -98,13 +115,21 @@ struct HomeView: View {
             action()
         } label: {
             Text(label)
-                .font(.system(size: 26, weight: .thin))
-                .tracking(5)
+                .font(.system(size: 26, weight: .regular))
                 .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .frame(height: 72)
+                .padding(.leading, 32)
         }
         .buttonStyle(.plain)
+    }
+
+    private func present(_ feature: ScanCapability, action: () -> Void) {
+        guard feature.isSupported else {
+            unsupportedFeature = feature
+            return
+        }
+        action()
     }
 }
 
@@ -113,6 +138,7 @@ struct HomeView: View {
 struct ScanHistoryView: View {
     @State private var showScanSheet = false
     @ObservedObject private var scanStore = ScanStore.shared
+    @State private var unsupportedFeature: ScanCapability?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -135,6 +161,13 @@ struct ScanHistoryView: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
+        .alert(item: $unsupportedFeature) { feature in
+            Alert(
+                title: Text("\(feature.title) Unavailable"),
+                message: Text(feature.unsupportedMessage),
+                dismissButton: .default(Text("OK"))
+            )
+        }
     }
 
     private var titleBar: some View {
@@ -154,8 +187,7 @@ struct ScanHistoryView: View {
                 .foregroundStyle(.white)
             Spacer()
             Button(action: {
-                showScanSheet = true
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                presentRoomScan()
             }) {
                 Image(systemName: "plus")
                     .font(.system(size: 16, weight: .medium))
@@ -174,7 +206,7 @@ struct ScanHistoryView: View {
             LazyVStack(spacing: 0) {
                 ForEach(scanStore.scans.reversed()) { scan in
                     NavigationLink(
-                        destination: ModelViewerView(capturedRoom: nil, exportURL: scan.url, depthImageURL: scan.depthURL, onNewScan: {})
+                        destination: ModelViewerView(capturedRoom: nil, exportURL: scan.url, depthImageURL: scan.depthURL, dismissLabel: "back", onNewScan: {})
                     ) {
                         ScanRow(record: scan)
                             .padding(.horizontal, 20)
@@ -219,8 +251,7 @@ struct ScanHistoryView: View {
                 .foregroundStyle(.white.opacity(DS.textTertiary))
                 .multilineTextAlignment(.center)
             Button("Start Scanning") {
-                showScanSheet = true
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                presentRoomScan()
             }
             .font(.system(size: 16))
             .foregroundStyle(Color.accent)
@@ -229,6 +260,15 @@ struct ScanHistoryView: View {
             Spacer()
         }
         .padding(.horizontal, 40)
+    }
+
+    private func presentRoomScan() {
+        guard ScanCapability.roomScan.isSupported else {
+            unsupportedFeature = .roomScan
+            return
+        }
+        showScanSheet = true
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }
 }
 
@@ -388,7 +428,7 @@ struct SearchHistoryView: View {
                         ScrollView {
                             LazyVStack(spacing: 0) {
                                 ForEach(results) { scan in
-                                    NavigationLink(destination: ModelViewerView(capturedRoom: nil, exportURL: scan.url, depthImageURL: scan.depthURL, onNewScan: {})) {
+                                    NavigationLink(destination: ModelViewerView(capturedRoom: nil, exportURL: scan.url, depthImageURL: scan.depthURL, dismissLabel: "back", onNewScan: {})) {
                                         VStack(spacing: 4) {
                                             Text(scan.scanType.rawValue)
                                                 .font(.system(size: 18, weight: .thin))

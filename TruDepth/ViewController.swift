@@ -32,6 +32,7 @@ struct RoomScanView: View {
                 if let room = viewModel.capturedRoom, let url = viewModel.exportURL {
                     ModelViewerView(capturedRoom: room, exportURL: url,
                                     depthImageURL: viewModel.depthImageURL,
+                                    dismissLabel: "main menu",
                                     onNewScan: viewModel.reset)
                         .transition(.opacity)
                 }
@@ -40,6 +41,8 @@ struct RoomScanView: View {
         .animation(.easeInOut(duration: 0.25), value: viewModel.phase)
         .toolbar(.hidden, for: .navigationBar)
         .statusBar(hidden: viewModel.phase == .scanning)
+        .interactiveDismissDisabled(viewModel.isSessionActive)
+        .onDisappear { viewModel.handleDisappear() }
         .alert("Scan Error", isPresented: $viewModel.showError) {
             Button("OK") { viewModel.reset() }
         } message: {
@@ -72,6 +75,13 @@ struct RoomScanView: View {
                 }
                 .padding(.top, 24)
 
+                if !viewModel.isSupported {
+                    Text("LiDAR + RoomPlan required on this device")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.3))
+                        .padding(.top, 12)
+                }
+
                 Spacer()
 
                 VStack(spacing: 12) {
@@ -81,14 +91,18 @@ struct RoomScanView: View {
                     }) {
                         Text("start scanning")
                             .font(.system(size: 17, weight: .medium))
-                            .foregroundStyle(.black)
+                            .foregroundStyle(viewModel.isSupported ? .black : .white.opacity(0.4))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 16)
-                            .background(Color.accent, in: Capsule())
+                            .background(
+                                viewModel.isSupported ? Color.accent : Color(white: 0.15),
+                                in: Capsule()
+                            )
                     }
+                    .disabled(!viewModel.isSupported)
 
                     Button(action: { dismiss() }) {
-                        Text("Back")
+                        Text("main menu")
                             .font(.caption)
                             .foregroundStyle(.white.opacity(DS.textTertiary))
                     }
@@ -149,6 +163,9 @@ struct RoomScanView: View {
 
             captureDepthButton
                 .padding(.bottom, 16)
+
+            mainMenuButton
+                .padding(.bottom, 12)
 
             wallProgressBar
                 .padding(.horizontal, 20)
@@ -211,6 +228,15 @@ struct RoomScanView: View {
         ZStack {
             Color.black.ignoresSafeArea()
             VStack(spacing: 16) {
+                HStack {
+                    Spacer()
+                    mainMenuButton
+                    Spacer()
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 12)
+
+                Spacer()
                 ProgressView()
                     .scaleEffect(1.5)
                     .tint(Color.accent)
@@ -221,7 +247,22 @@ struct RoomScanView: View {
                 Text("this may take a few seconds")
                     .font(.subheadline)
                     .foregroundStyle(.white.opacity(DS.textSecondary))
+                Spacer()
             }
+        }
+    }
+
+    private var mainMenuButton: some View {
+        Button(action: {
+            viewModel.cancelScan()
+            dismiss()
+        }) {
+            Text("main menu")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(DS.textSecondary))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(Color(white: 0.12), in: Capsule())
         }
     }
 }
@@ -244,6 +285,7 @@ final class RoomScanViewModel: ObservableObject {
     enum Phase: Equatable { case idle, scanning, processing, done }
 
     let captureView = RoomCaptureView()
+    let isSupported = ScanCapability.roomScan.isSupported
 
     @Published var phase: Phase = .idle
     @Published var capturedRoom: CapturedRoom?
@@ -258,22 +300,27 @@ final class RoomScanViewModel: ObservableObject {
     private var session: RoomCaptureSession { captureView.captureSession }
     private var wantsDepthCapture: Bool = false
 
+    var isSessionActive: Bool {
+        phase == .scanning || phase == .processing
+    }
+
     func startScan() {
+        guard isSupported else { return }
+        resetCaptureState()
         session.delegate = self
         session.run(configuration: RoomCaptureSession.Configuration())
         phase = .scanning
     }
 
     func finishScan() {
+        guard phase == .scanning else { return }
         phase = .processing
         session.stop()
     }
 
     func cancelScan() {
-        session.delegate = nil  // prevent late callbacks
-        session.stop()
-        wantsDepthCapture = false
-        depthCaptureConfirmed = false
+        teardownSession()
+        resetCaptureState()
         phase = .idle
     }
 
@@ -281,14 +328,20 @@ final class RoomScanViewModel: ObservableObject {
         capturedRoom = nil
         exportURL = nil
         depthImageURL = nil
-        wallCount = 0
-        wantsDepthCapture = false
-        depthCaptureConfirmed = false
-        statusText = "Point at walls to begin"
+        resetCaptureState()
         phase = .idle
     }
 
+    func handleDisappear() {
+        teardownSession()
+        if phase != .done {
+            resetCaptureState()
+            phase = .idle
+        }
+    }
+
     func captureDepthSnapshot() {
+        guard phase == .scanning else { return }
         wantsDepthCapture = true
         depthCaptureConfirmed = true
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
@@ -298,8 +351,21 @@ final class RoomScanViewModel: ObservableObject {
         }
     }
 
+    private func teardownSession() {
+        session.delegate = nil
+        session.stop()
+    }
+
+    private func resetCaptureState() {
+        wallCount = 0
+        wantsDepthCapture = false
+        depthCaptureConfirmed = false
+        statusText = "Point at walls to begin"
+    }
+
     // Runs a brief ARSession (after RoomPlan session has stopped) to grab one depth frame.
     private func captureOneDepthFrame() async -> UIImage? {
+        guard ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) else { return nil }
         let arSession = ARSession()
         let config = ARWorldTrackingConfiguration()
         config.frameSemantics = [.sceneDepth]
@@ -388,6 +454,7 @@ extension RoomScanViewModel: RoomCaptureSessionDelegate {
         Task { @MainActor [weak self] in
             guard let self else { return }
             do {
+                self.session.delegate = nil
                 let builder = RoomBuilder(options: [.beautifyObjects])
                 let room = try await builder.capturedRoom(from: data)
 
@@ -417,6 +484,8 @@ struct ModelViewerView: View {
     let capturedRoom: CapturedRoom?   // nil when opened from scan history
     let exportURL: URL?
     var depthImageURL: URL? = nil
+    var title: String = "room model"
+    var dismissLabel: String = "back"
     let onNewScan: () -> Void
 
     @State private var quickLookURL: URL?
@@ -437,17 +506,21 @@ struct ModelViewerView: View {
             VStack {
                 HStack {
                     Button(action: { dismiss() }) {
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .background(Color(white: 0.12), in: Capsule())
+                        HStack(spacing: 6) {
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 12, weight: .semibold))
+                            Text(dismissLabel)
+                                .font(.system(size: 12, weight: .medium))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Color(white: 0.12), in: Capsule())
                     }
 
                     Spacer()
 
-                    Text("room model")
+                    Text(title)
                         .font(.system(size: 11, weight: .medium))
                         .tracking(1.0)
                         .foregroundStyle(.white.opacity(DS.textTertiary))
@@ -638,6 +711,7 @@ struct SceneKitModelView: UIViewRepresentable {
 
 // MARK: - Scan History Store
 
+@MainActor
 final class ScanStore: ObservableObject {
 
     static let shared = ScanStore()
@@ -659,8 +733,11 @@ final class ScanStore: ObservableObject {
     private func load() {
         guard let data = try? Data(contentsOf: indexURL),
               let records = try? JSONDecoder().decode([ScanRecord].self, from: data) else { return }
-        // Remove stale entries whose files were deleted outside the app.
-        scans = records.filter { FileManager.default.fileExists(atPath: $0.url.path) }
+        let filtered = records.filter { FileManager.default.fileExists(atPath: $0.url.path) }
+        scans = filtered
+        if filtered.count != records.count {
+            try? persist()
+        }
     }
 
     func save(room: CapturedRoom, depthImage: UIImage? = nil) throws -> ScanRecord {
@@ -677,12 +754,11 @@ final class ScanStore: ObservableObject {
         }
 
         let record = ScanRecord(id: id, date: Date(), filename: filename, depthFilename: depthFilename)
-        DispatchQueue.main.async { self.scans.append(record) }
-        try persist()
+        try appendAndPersist(record)
         return record
     }
 
-    func saveObject(exportURL: URL) throws {
+    func saveObject(exportURL: URL) throws -> ScanRecord {
         let filename = exportURL.lastPathComponent
         let dest = directory.appendingPathComponent(filename)
         if exportURL != dest {
@@ -690,8 +766,8 @@ final class ScanStore: ObservableObject {
         }
         let record = ScanRecord(id: UUID(), date: Date(), filename: filename,
                                 depthFilename: nil, scanType: .object)
-        DispatchQueue.main.async { self.scans.append(record) }
-        try persist()
+        try appendAndPersist(record)
+        return record
     }
 
     func delete(_ record: ScanRecord) {
@@ -706,6 +782,11 @@ final class ScanStore: ObservableObject {
     private func persist() throws {
         let data = try JSONEncoder().encode(scans)
         try data.write(to: indexURL, options: .atomic)
+    }
+
+    private func appendAndPersist(_ record: ScanRecord) throws {
+        scans.append(record)
+        try persist()
     }
 }
 

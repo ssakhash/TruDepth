@@ -11,6 +11,7 @@
 		AAFF00042A0EF82D0069C10E /* RoomPlan.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAFF00022A0EF82D0069C10E /* RoomPlan.framework */; };
 		AAFF00052A0EF82D0069C10E /* ARKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAFF00062A0EF82D0069C10E /* ARKit.framework */; };
 		AAFF00082A0EF82D0069C10E /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAFF00092A0EF82D0069C10E /* MetalKit.framework */; };
+		C0DE00022B0EF82D0069C10E /* DepthHeatmap.metal in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00012B0EF82D0069C10E /* DepthHeatmap.metal */; };
 		727D62282A0EF82D0069C10E /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 727D62272A0EF82D0069C10E /* AppDelegate.swift */; };
 		727D622A2A0EF82D0069C10E /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 727D62292A0EF82D0069C10E /* SceneDelegate.swift */; };
 		727D622C2A0EF82D0069C10E /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 727D622B2A0EF82D0069C10E /* ViewController.swift */; };
@@ -26,6 +27,7 @@
 		AAFF00022A0EF82D0069C10E /* RoomPlan.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = RoomPlan.framework; path = System/Library/Frameworks/RoomPlan.framework; sourceTree = SDKROOT; };
 		AAFF00062A0EF82D0069C10E /* ARKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ARKit.framework; path = System/Library/Frameworks/ARKit.framework; sourceTree = SDKROOT; };
 		AAFF00092A0EF82D0069C10E /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
+		C0DE00012B0EF82D0069C10E /* DepthHeatmap.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = DepthHeatmap.metal; sourceTree = "<group>"; };
 		727D62242A0EF82D0069C10E /* TruDepth.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TruDepth.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		727D62272A0EF82D0069C10E /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		727D62292A0EF82D0069C10E /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
@@ -88,6 +90,7 @@
 				727D62292A0EF82D0069C10E /* SceneDelegate.swift */,
 				727D622B2A0EF82D0069C10E /* ViewController.swift */,
 				BB0B00012A0EF82D0069C10E /* ObjectScanView.swift */,
+				C0DE00012B0EF82D0069C10E /* DepthHeatmap.metal */,
 				727D622D2A0EF82D0069C10E /* Main.storyboard */,
 				727D62332A0EF82F0069C10E /* Assets.xcassets */,
 				727D62352A0EF82F0069C10E /* LaunchScreen.storyboard */,
@@ -168,6 +171,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C0DE00022B0EF82D0069C10E /* DepthHeatmap.metal in Sources */,
 				727D622C2A0EF82D0069C10E /* ViewController.swift in Sources */,
 				727D62322A0EF82D0069C10E /* TruDepth.xcdatamodeld in Sources */,
 				727D62282A0EF82D0069C10E /* AppDelegate.swift in Sources */,
