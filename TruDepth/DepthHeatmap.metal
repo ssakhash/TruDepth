@@ -6,13 +6,13 @@ struct VertexOut {
     float2 texCoord;
 };
 
-// Self-contained full-screen quad — no vertex buffer required.
+// Full-screen quad with no vertex buffer.
 vertex VertexOut depth_heatmap_vert(uint vid [[vertex_id]]) {
     const float2 pos[4] = { {-1,-1}, {-1,1}, {1,-1}, {1,1} };
     const float2 uv[4]  = { {0,1},   {0,0},  {1,1},  {1,0} };
     VertexOut out;
     out.position = float4(pos[vid], 0.0, 1.0);
-    // Rotate landscape camera UVs into portrait screen space (90° CW).
+    // The SwiftUI 180-degree correction makes the final sensor image 90 degrees clockwise.
     out.texCoord = float2(1.0 - uv[vid].y, uv[vid].x);
     return out;
 }
@@ -27,9 +27,12 @@ static float4 jet(float t) {
 
 fragment float4 depth_heatmap_frag(VertexOut in [[stage_in]],
                                     texture2d<float> depthTex [[texture(0)]],
+                                    texture2d<uint, access::read> confidenceTex [[texture(1)]],
                                     constant float& maxDepth [[buffer(0)]]) {
-    constexpr sampler s(filter::linear, address::clamp_to_edge);
+    constexpr sampler s(filter::nearest, address::clamp_to_edge);
     float d = depthTex.sample(s, in.texCoord).r;
-    if (d <= 0.0f || d > maxDepth * 1.5f) discard_fragment();
+    uint2 pixel = min(uint2(in.texCoord * float2(confidenceTex.get_width(), confidenceTex.get_height())),
+                      uint2(confidenceTex.get_width() - 1, confidenceTex.get_height() - 1));
+    if (!isfinite(d) || d <= 0.0f || d > maxDepth * 1.5f || confidenceTex.read(pixel).r < 1) discard_fragment();
     return jet(saturate(d / maxDepth));
 }

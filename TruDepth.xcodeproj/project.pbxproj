@@ -7,37 +7,53 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		AAFF00032A0EF82D0069C10E /* RealityKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAFF00012A0EF82D0069C10E /* RealityKit.framework */; };
-		AAFF00042A0EF82D0069C10E /* RoomPlan.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAFF00022A0EF82D0069C10E /* RoomPlan.framework */; };
-		AAFF00052A0EF82D0069C10E /* ARKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAFF00062A0EF82D0069C10E /* ARKit.framework */; };
-		AAFF00082A0EF82D0069C10E /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAFF00092A0EF82D0069C10E /* MetalKit.framework */; };
-		C0DE00022B0EF82D0069C10E /* DepthHeatmap.metal in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00012B0EF82D0069C10E /* DepthHeatmap.metal */; };
 		727D62282A0EF82D0069C10E /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 727D62272A0EF82D0069C10E /* AppDelegate.swift */; };
 		727D622A2A0EF82D0069C10E /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 727D62292A0EF82D0069C10E /* SceneDelegate.swift */; };
 		727D622C2A0EF82D0069C10E /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 727D622B2A0EF82D0069C10E /* ViewController.swift */; };
-		BB0B00022A0EF82D0069C10E /* ObjectScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0B00012A0EF82D0069C10E /* ObjectScanView.swift */; };
 		727D622F2A0EF82D0069C10E /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 727D622D2A0EF82D0069C10E /* Main.storyboard */; };
 		727D62322A0EF82D0069C10E /* TruDepth.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = 727D62302A0EF82D0069C10E /* TruDepth.xcdatamodeld */; };
 		727D62342A0EF82F0069C10E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 727D62332A0EF82F0069C10E /* Assets.xcassets */; };
 		727D62372A0EF82F0069C10E /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 727D62352A0EF82F0069C10E /* LaunchScreen.storyboard */; };
+		AAFF00032A0EF82D0069C10E /* RealityKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAFF00012A0EF82D0069C10E /* RealityKit.framework */; };
+		AAFF00042A0EF82D0069C10E /* RoomPlan.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAFF00022A0EF82D0069C10E /* RoomPlan.framework */; };
+		AAFF00052A0EF82D0069C10E /* ARKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAFF00062A0EF82D0069C10E /* ARKit.framework */; };
+		AAFF00082A0EF82D0069C10E /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAFF00092A0EF82D0069C10E /* MetalKit.framework */; };
+		BB0B00022A0EF82D0069C10E /* ObjectScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0B00012A0EF82D0069C10E /* ObjectScanView.swift */; };
+		C0DE00022B0EF82D0069C10E /* DepthHeatmap.metal in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00012B0EF82D0069C10E /* DepthHeatmap.metal */; };
+		CD2700000000000000000001 /* ScanCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD2700000000000000000002 /* ScanCore.swift */; };
+		CD2700010000000000000001 /* ScanAsset.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD2700010000000000000002 /* ScanAsset.swift */; };
+		CD2700020000000000000001 /* ModelIOCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD2700020000000000000002 /* ModelIOCodec.swift */; };
+		CD2700030000000000000001 /* DepthSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD2700030000000000000002 /* DepthSnapshot.swift */; };
+		CD2700040000000000000001 /* ScanServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD2700040000000000000002 /* ScanServices.swift */; };
+		CD2700050000000000000001 /* ScanLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD2700050000000000000002 /* ScanLibraryView.swift */; };
+		CD2700060000000000000001 /* RealityModelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD2700060000000000000002 /* RealityModelView.swift */; };
+		CD2700070000000000000001 /* PhotoScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD2700070000000000000002 /* PhotoScanView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		AAFF00012A0EF82D0069C10E /* RealityKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = RealityKit.framework; path = System/Library/Frameworks/RealityKit.framework; sourceTree = SDKROOT; };
-		AAFF00022A0EF82D0069C10E /* RoomPlan.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = RoomPlan.framework; path = System/Library/Frameworks/RoomPlan.framework; sourceTree = SDKROOT; };
-		AAFF00062A0EF82D0069C10E /* ARKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ARKit.framework; path = System/Library/Frameworks/ARKit.framework; sourceTree = SDKROOT; };
-		AAFF00092A0EF82D0069C10E /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
-		C0DE00012B0EF82D0069C10E /* DepthHeatmap.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = DepthHeatmap.metal; sourceTree = "<group>"; };
 		727D62242A0EF82D0069C10E /* TruDepth.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TruDepth.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		727D62272A0EF82D0069C10E /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		727D62292A0EF82D0069C10E /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		727D622B2A0EF82D0069C10E /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
-		BB0B00012A0EF82D0069C10E /* ObjectScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObjectScanView.swift; sourceTree = "<group>"; };
 		727D622E2A0EF82D0069C10E /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		727D62312A0EF82D0069C10E /* TruDepth.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = TruDepth.xcdatamodel; sourceTree = "<group>"; };
 		727D62332A0EF82F0069C10E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		727D62362A0EF82F0069C10E /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		727D62382A0EF82F0069C10E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		AAFF00012A0EF82D0069C10E /* RealityKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = RealityKit.framework; path = System/Library/Frameworks/RealityKit.framework; sourceTree = SDKROOT; };
+		AAFF00022A0EF82D0069C10E /* RoomPlan.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = RoomPlan.framework; path = System/Library/Frameworks/RoomPlan.framework; sourceTree = SDKROOT; };
+		AAFF00062A0EF82D0069C10E /* ARKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ARKit.framework; path = System/Library/Frameworks/ARKit.framework; sourceTree = SDKROOT; };
+		AAFF00092A0EF82D0069C10E /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
+		BB0B00012A0EF82D0069C10E /* ObjectScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObjectScanView.swift; sourceTree = "<group>"; };
+		C0DE00012B0EF82D0069C10E /* DepthHeatmap.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = DepthHeatmap.metal; sourceTree = "<group>"; };
+		CD2700000000000000000002 /* ScanCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanCore.swift; sourceTree = "<group>"; };
+		CD2700010000000000000002 /* ScanAsset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanAsset.swift; sourceTree = "<group>"; };
+		CD2700020000000000000002 /* ModelIOCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelIOCodec.swift; sourceTree = "<group>"; };
+		CD2700030000000000000002 /* DepthSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DepthSnapshot.swift; sourceTree = "<group>"; };
+		CD2700040000000000000002 /* ScanServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanServices.swift; sourceTree = "<group>"; };
+		CD2700050000000000000002 /* ScanLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanLibraryView.swift; sourceTree = "<group>"; };
+		CD2700060000000000000002 /* RealityModelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealityModelView.swift; sourceTree = "<group>"; };
+		CD2700070000000000000002 /* PhotoScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoScanView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -64,17 +80,6 @@
 			);
 			sourceTree = "<group>";
 		};
-		AAFF00072A0EF82D0069C10E /* Frameworks */ = {
-			isa = PBXGroup;
-			children = (
-				AAFF00012A0EF82D0069C10E /* RealityKit.framework */,
-				AAFF00022A0EF82D0069C10E /* RoomPlan.framework */,
-				AAFF00062A0EF82D0069C10E /* ARKit.framework */,
-				AAFF00092A0EF82D0069C10E /* MetalKit.framework */,
-			);
-			name = Frameworks;
-			sourceTree = "<group>";
-		};
 		727D62252A0EF82D0069C10E /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -86,6 +91,14 @@
 		727D62262A0EF82D0069C10E /* TruDepth */ = {
 			isa = PBXGroup;
 			children = (
+				CD2700000000000000000002 /* ScanCore.swift */,
+				CD2700010000000000000002 /* ScanAsset.swift */,
+				CD2700020000000000000002 /* ModelIOCodec.swift */,
+				CD2700030000000000000002 /* DepthSnapshot.swift */,
+				CD2700040000000000000002 /* ScanServices.swift */,
+				CD2700050000000000000002 /* ScanLibraryView.swift */,
+				CD2700060000000000000002 /* RealityModelView.swift */,
+				CD2700070000000000000002 /* PhotoScanView.swift */,
 				727D62272A0EF82D0069C10E /* AppDelegate.swift */,
 				727D62292A0EF82D0069C10E /* SceneDelegate.swift */,
 				727D622B2A0EF82D0069C10E /* ViewController.swift */,
@@ -98,6 +111,17 @@
 				727D62302A0EF82D0069C10E /* TruDepth.xcdatamodeld */,
 			);
 			path = TruDepth;
+			sourceTree = "<group>";
+		};
+		AAFF00072A0EF82D0069C10E /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				AAFF00012A0EF82D0069C10E /* RealityKit.framework */,
+				AAFF00022A0EF82D0069C10E /* RoomPlan.framework */,
+				AAFF00062A0EF82D0069C10E /* ARKit.framework */,
+				AAFF00092A0EF82D0069C10E /* MetalKit.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -171,6 +195,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CD2700000000000000000001 /* ScanCore.swift in Sources */,
+				CD2700010000000000000001 /* ScanAsset.swift in Sources */,
+				CD2700020000000000000001 /* ModelIOCodec.swift in Sources */,
+				CD2700030000000000000001 /* DepthSnapshot.swift in Sources */,
+				CD2700040000000000000001 /* ScanServices.swift in Sources */,
+				CD2700050000000000000001 /* ScanLibraryView.swift in Sources */,
+				CD2700060000000000000001 /* RealityModelView.swift in Sources */,
+				CD2700070000000000000001 /* PhotoScanView.swift in Sources */,
 				C0DE00022B0EF82D0069C10E /* DepthHeatmap.metal in Sources */,
 				727D622C2A0EF82D0069C10E /* ViewController.swift in Sources */,
 				727D62322A0EF82D0069C10E /* TruDepth.xcdatamodeld in Sources */,
@@ -344,7 +376,8 @@
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
@@ -377,7 +410,8 @@
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;

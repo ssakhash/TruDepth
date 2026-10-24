@@ -1,454 +1,226 @@
 import SwiftUI
-import ARKit
 import RealityKit
-import Combine
+import ARKit
 import MetalKit
 
-// MARK: - Live Mesh Screen
-
 struct LiveMeshView: View {
-    @StateObject private var viewModel = LiveMeshViewModel()
-    @Environment(\.dismiss) private var dismiss
-
+    @StateObject private var model = LiveDepthModel()
+    @Environment(\.scenePhase) private var scenePhase
     var body: some View {
-        ZStack {
-            if viewModel.isSupported {
-                ARMeshContainer(viewModel: viewModel)
-                    .ignoresSafeArea()
-                // Black backdrop so jet-color heatmap pops against dark background in depth mode.
-                if viewModel.visualization == .depth {
-                    Color.black.ignoresSafeArea()
+        ZStack(alignment: .bottom) {
+            LiveARContainer(model: model).ignoresSafeArea(edges: .bottom)
+            if model.depthMode {
+                Color.black.ignoresSafeArea(edges: .bottom)
+                if let renderer = model.renderer {
+                    HeatmapContainer(renderer: renderer).rotationEffect(.degrees(180)).ignoresSafeArea(edges: .bottom).allowsHitTesting(false)
                 }
-                // Metal heatmap overlay — always in hierarchy; renderer controls visibility.
-                MTKHeatmapView(renderer: viewModel.heatmapRenderer)
-                    .ignoresSafeArea()
-                    .allowsHitTesting(false)
-                    .rotationEffect(.degrees(viewModel.visualization == .depth ? 180 : 0))
-            } else {
-                Color.black.ignoresSafeArea()
             }
-            overlayUI
-        }
-        .toolbar(.hidden, for: .navigationBar)
-        .statusBar(hidden: true)
-        .onAppear { viewModel.start() }
-        .onDisappear { viewModel.stop() }
-    }
-
-    private var overlayUI: some View {
-        VStack {
-            topBar
-            Spacer()
-            if !viewModel.isSupported { unsupportedBadge }
-            bottomControls
-        }
-    }
-
-    private var topBar: some View {
-        HStack(alignment: .center) {
-            Button(action: { dismiss() }) {
-                Text("main menu")
-                    .font(.system(size: 11, weight: .medium))
-                    .tracking(0.6)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 7)
-                    .background(Color.black.opacity(0.6), in: Capsule())
-            }
-
-            Spacer()
-
-            Text("live depth")
-                .font(.system(size: 11, weight: .medium))
-                .tracking(1.0)
-                .foregroundStyle(.white.opacity(DS.textTertiary))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 7)
-                .background(Color.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-            Spacer()
-
-            if viewModel.isSupported { distanceBadge }
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 8)
-    }
-
-    private var distanceBadge: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(viewModel.distanceIsNear ? Color.accent : .white.opacity(DS.textSecondary))
-                .frame(width: 7, height: 7)
-                .animation(.easeInOut(duration: 0.3), value: viewModel.distanceIsNear)
-            Text(viewModel.centerDistance)
-                .font(.system(.subheadline, design: .monospaced).weight(.medium))
-                .foregroundStyle(viewModel.distanceIsNear ? Color.accent : .white.opacity(DS.textSecondary))
-                .animation(.easeInOut(duration: 0.3), value: viewModel.distanceIsNear)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 7)
-        .background(Color.black.opacity(0.6), in: Capsule())
-        .animation(.easeInOut(duration: 0.3), value: viewModel.distanceIsNear)
-    }
-
-    private var unsupportedBadge: some View {
-        Label("LiDAR not available on this device", systemImage: "exclamationmark.triangle.fill")
-            .font(.callout)
-            .foregroundStyle(.white)
-            .padding(16)
-            .background(Color(white: 0.1), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .padding(.bottom, 16)
-    }
-
-    private var bottomControls: some View {
-        VStack(spacing: 12) {
-            CustomSegmentedControl(
-                options: MeshVisualization.allCases.map(\.label),
-                selectedIndex: Binding(
-                    get: { MeshVisualization.allCases.firstIndex(of: viewModel.visualization) ?? 0 },
-                    set: { idx in
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                            viewModel.visualization = MeshVisualization.allCases[idx]
-                        }
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    }
-                )
-            )
-            .padding(.horizontal, 20)
-
-            if viewModel.visualization == .depth {
-                depthLegend
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-
-            Button(action: { dismiss() }) {
-                Text("main menu")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(DS.textSecondary))
-            }
-        }
-        .animation(.spring(response: 0.4), value: viewModel.visualization == .depth)
-        .padding(.bottom, 100)
-    }
-
-    private var depthLegend: some View {
-        HStack(spacing: 8) {
-            Text("0 m")
-                .font(.caption2)
-                .foregroundStyle(.white.opacity(0.6))
-            LinearGradient(
-                colors: [.red, .yellow, .green, .cyan, .blue],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-            .frame(height: 6)
-            .clipShape(Capsule())
-            Text("5 m")
-                .font(.caption2)
-                .foregroundStyle(.white.opacity(0.6))
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .background(Color(white: 0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .padding(.horizontal, 24)
-    }
-}
-
-// MARK: - Custom Segmented Control
-
-private struct CustomSegmentedControl: View {
-    let options: [String]
-    @Binding var selectedIndex: Int
-
-    var body: some View {
-        HStack(spacing: 4) {
-            ForEach(options.indices, id: \.self) { idx in
-                Button(action: {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                        selectedIndex = idx
-                    }
-                }) {
-                    Text(options[idx])
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(selectedIndex == idx ? .white : .white.opacity(DS.textSecondary))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(
-                            Capsule()
-                                .fill(.white.opacity(selectedIndex == idx ? 0.15 : 0))
-                                .animation(.spring(response: 0.35, dampingFraction: 0.7), value: selectedIndex)
-                        )
+            VStack(spacing: 12) {
+                Text(model.distance).font(.system(.title, design: .monospaced))
+                Picker("Display", selection: $model.depthMode) {
+                    Text("Classify").tag(false)
+                    Text("Depth").tag(true)
+                }.pickerStyle(.segmented).onChange(of: model.depthMode) { model.applyMode() }
+                if model.depthMode {
+                    HStack { Text("Near").foregroundStyle(.blue); Spacer(); Text("5 m").foregroundStyle(.red) }.font(.caption)
                 }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(4)
-        .background(Color(white: 0.1), in: Capsule())
+                Text(model.status).font(.caption).multilineTextAlignment(.center)
+                Button("Save Depth Snapshot") { model.snapshot() }.buttonStyle(.borderedProminent).disabled(model.saving || !model.running)
+                if model.saving { ProgressView() }
+            }.padding().background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20)).padding()
+        }.scanNavigation("live depth")
+        .awakeDuringScan(model.running)
+        .task { await model.start() }
+        .onChange(of: scenePhase) { if scenePhase == .active { Task { await model.start() } } else if scenePhase == .background { model.stop() } }
+        .onDisappear { model.stop() }
+        .alert("Live depth", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) {
+            Button("OK") { model.error = nil }
+        } message: { Text(model.error ?? "") }
     }
 }
 
-// MARK: - Visualization Mode
+@MainActor final class LiveDepthModel: NSObject, ObservableObject, @preconcurrency ARSessionDelegate {
+    let arView = ARView(frame: .zero, cameraMode: .ar, automaticallyConfigureSession: false)
+    @Published var depthMode = true
+    @Published var distance = "-- m"
+    @Published var status = "Depth snapshots include camera, confidence, and calibration data."
+    @Published var error: String?
+    @Published var saving = false
+    @Published var running = false
+    var renderer: DepthHeatmapRenderer?
+    private var displayLink: CADisplayLink?
+    private var lastFrame: TimeInterval = -1
+    private var lastReadout: TimeInterval = -1
+    private var generation = UUID()
+    private var starting = false
 
-enum MeshVisualization: CaseIterable {
-    case classification, depth
-
-    var label: String {
-        switch self {
-        case .classification: "classify"
-        case .depth:          "depth"
-        }
-    }
-}
-
-// MARK: - ARView Container
-
-struct ARMeshContainer: UIViewRepresentable {
-    let viewModel: LiveMeshViewModel
-
-    func makeUIView(context: Context) -> ARView { viewModel.arView }
-    func updateUIView(_ uiView: ARView, context: Context) {}
-}
-
-// MARK: - Metal Heatmap Container
-
-struct MTKHeatmapView: UIViewRepresentable {
-    let renderer: DepthHeatmapRenderer
-
-    func makeUIView(context: Context) -> MTKView {
-        let view = MTKView()
-        renderer.attach(view)
-        return view
-    }
-
-    func updateUIView(_ uiView: MTKView, context: Context) {}
-}
-
-// MARK: - Live Mesh View Model
-
-@MainActor
-final class LiveMeshViewModel: ObservableObject {
-
-    let arView: ARView = {
-        let v = ARView(frame: .zero, cameraMode: .ar, automaticallyConfigureSession: false)
-        v.renderOptions = [.disableMotionBlur, .disableDepthOfField]
-        return v
-    }()
-
-    let heatmapRenderer: DepthHeatmapRenderer = {
-        guard let device = MTLCreateSystemDefaultDevice(),
-              let renderer = DepthHeatmapRenderer(device: device) else {
-            fatalError("Metal is not available on this device")
-        }
-        return renderer
-    }()
-
-    @Published var visualization: MeshVisualization = .classification {
-        didSet { applyVisualization(visualization) }
-    }
-    @Published var centerDistance: String = "-- m"
-    @Published var distanceIsNear: Bool = true
-
-    let isSupported = ScanCapability.liveDepth.isSupported
-
-    private var distanceTimer: AnyCancellable?
-
-    func start() {
-        guard isSupported else { return }
-        let config = ARWorldTrackingConfiguration()
-        config.sceneReconstruction = .meshWithClassification
-        config.frameSemantics = [.sceneDepth]
-        config.environmentTexturing = .automatic
-        arView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
-        applyVisualization(.classification)
-        startDistancePolling()
-    }
-
-    func stop() {
-        arView.session.pause()
-        distanceTimer?.cancel()
-    }
-
-    func applyVisualization(_ mode: MeshVisualization) {
-        switch mode {
-        case .classification:
-            arView.debugOptions = [.showSceneUnderstanding]
-            arView.environment.sceneUnderstanding.options = [.occlusion]
-            heatmapRenderer.mtkView?.isHidden = true
-        case .depth:
-            arView.debugOptions = []
-            arView.environment.sceneUnderstanding.options = []
-            heatmapRenderer.mtkView?.isHidden = false
-        }
-    }
-
-    // MARK: - Center distance polling (off main thread)
-
-    private func startDistancePolling() {
-        distanceTimer = Timer.publish(every: 0.15, on: .main, in: .common)
-            .autoconnect()
-            .sink { [weak self] _ in self?.sampleCenterDepth() }
-    }
-
-    private func sampleCenterDepth() {
-        guard let depthMap = arView.session.currentFrame?.sceneDepth?.depthMap else { return }
-        let isDepthMode = visualization == .depth
-        // Capture main-actor properties before crossing into Sendable closure.
-        let renderer = heatmapRenderer
-        // CVPixelBuffer is not Sendable; wrap so the compiler accepts cross-thread transfer.
-        // Safety: we own the lock/unlock on the background thread and don't alias it elsewhere.
-        let box = UncheckedSendable(depthMap)
-
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let depthMap = box.value
-
-            // Feed Metal renderer while in depth mode (zero-copy texture path).
-            if isDepthMode {
-                renderer.update(depthMap: depthMap)
-            }
-
-            // Sample center pixel with correct stride.
-            CVPixelBufferLockBaseAddress(depthMap, .readOnly)
-            defer { CVPixelBufferUnlockBaseAddress(depthMap, .readOnly) }
-
-            let w = CVPixelBufferGetWidth(depthMap)
-            let h = CVPixelBufferGetHeight(depthMap)
-            guard w > 0, h > 0,
-                  let base = CVPixelBufferGetBaseAddress(depthMap) else { return }
-
-            let stride = CVPixelBufferGetBytesPerRow(depthMap) / MemoryLayout<Float32>.stride
-            let value = base.assumingMemoryBound(to: Float32.self)[(h / 2) * stride + (w / 2)]
-            guard value > 0 else { return }
-
-            let text = String(format: "%.2f m", value)
-            let near = value <= 5.0
-
-            DispatchQueue.main.async {
-                self?.centerDistance = text
-                self?.distanceIsNear = near
-            }
-        }
-    }
-}
-
-// MARK: - Sendable Helpers
-
-private struct UncheckedSendable<T>: @unchecked Sendable {
-    let value: T
-    init(_ value: T) { self.value = value }
-}
-
-// MARK: - Metal Depth Heatmap Renderer
-
-final class DepthHeatmapRenderer: NSObject, MTKViewDelegate, @unchecked Sendable {
-
-    private(set) var device: MTLDevice
-    private let commandQueue: MTLCommandQueue
-    private var pipelineState: MTLRenderPipelineState?
-    private var textureCache: CVMetalTextureCache?
-
-    // Thread-safe depth texture access.
-    private let textureLock = NSLock()
-    private var currentCVTexture: CVMetalTexture?
-    private var pendingDepthTexture: MTLTexture?
-
-    var maxDepth: Float = 5.0
-    @MainActor weak var mtkView: MTKView?
-
-    init?(device: MTLDevice) {
-        guard let queue = device.makeCommandQueue() else { return nil }
-        self.device = device
-        self.commandQueue = queue
+    override init() {
         super.init()
-        CVMetalTextureCacheCreate(kCFAllocatorDefault, nil, device, nil, &textureCache)
+        CapturePreviewRendering.configure(arView)
+        do { renderer = try DepthHeatmapRenderer() }
+        catch { self.error = error.localizedDescription }
     }
-
-    // Called once by MTKHeatmapView after the MTKView is created.
-    @MainActor
-    func attach(_ view: MTKView) {
-        view.device = device
-        view.colorPixelFormat = .bgra8Unorm
-        view.delegate = self
-        view.isPaused = false
-        view.preferredFramesPerSecond = 30
-        view.framebufferOnly = false
-        view.isOpaque = false
-        view.backgroundColor = .clear
-        view.isUserInteractionEnabled = false
-        view.isHidden = true  // hidden until depth mode is activated
-        setupPipeline(pixelFormat: view.colorPixelFormat)
-        mtkView = view
-    }
-
-    private func setupPipeline(pixelFormat: MTLPixelFormat) {
-        guard let library = device.makeDefaultLibrary() else {
-            fatalError("DepthHeatmap.metal is not compiled into the TruDepth target.")
-        }
-        guard let vertFn = library.makeFunction(name: "depth_heatmap_vert"),
-              let fragFn = library.makeFunction(name: "depth_heatmap_frag") else {
-            fatalError("Missing depth heatmap Metal functions in the default library.")
-        }
-
-        let desc = MTLRenderPipelineDescriptor()
-        desc.vertexFunction = vertFn
-        desc.fragmentFunction = fragFn
-        desc.colorAttachments[0].pixelFormat = pixelFormat
-        desc.colorAttachments[0].isBlendingEnabled = true
-        desc.colorAttachments[0].rgbBlendOperation = .add
-        desc.colorAttachments[0].alphaBlendOperation = .add
-        desc.colorAttachments[0].sourceRGBBlendFactor = .sourceAlpha
-        desc.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceAlpha
-        desc.colorAttachments[0].sourceAlphaBlendFactor = .one
-        desc.colorAttachments[0].destinationAlphaBlendFactor = .zero
+    func start() async {
+        guard !running, !starting else { return }
+        guard ScanCapability.liveDepth.isSupported else { error = "Live depth requires a LiDAR-equipped device."; return }
+        let token = generation
+        starting = true
+        defer { if token == generation { starting = false } }
         do {
-            pipelineState = try device.makeRenderPipelineState(descriptor: desc)
-        } catch {
-            fatalError("Failed to build the depth heatmap render pipeline: \(error.localizedDescription)")
+            try await CameraAccess.require(); try Task.checkCancellation()
+            guard token == generation else { return }
+            let config = ARWorldTrackingConfiguration()
+            config.frameSemantics = [.sceneDepth]
+            if ARWorldTrackingConfiguration.supportsFrameSemantics(.smoothedSceneDepth) { config.frameSemantics.insert(.smoothedSceneDepth) }
+            if ARWorldTrackingConfiguration.supportsSceneReconstruction(.meshWithClassification) { config.sceneReconstruction = .meshWithClassification }
+            arView.session.delegateQueue = .main; arView.session.delegate = self
+            arView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
+            running = true; applyMode()
+            displayLink?.invalidate()
+            let link = CADisplayLink(target: self, selector: #selector(tick))
+            link.preferredFrameRateRange = CAFrameRateRange(minimum: 15, maximum: 60, preferred: 60)
+            link.add(to: .main, forMode: .common); displayLink = link
+        } catch { self.error = error.localizedDescription }
+    }
+    func applyMode() {
+        arView.debugOptions = depthMode ? [] : [.showSceneUnderstanding]
+        arView.environment.sceneUnderstanding.options = depthMode ? [] : [.occlusion]
+        if !depthMode && !ARWorldTrackingConfiguration.supportsSceneReconstruction(.meshWithClassification) {
+            status = "Classification is unavailable on this device. Depth remains available."
         }
     }
-
-    // Called from a background thread by LiveMeshViewModel.
-    func update(depthMap: CVPixelBuffer) {
-        guard let cache = textureCache else { return }
-        let w = CVPixelBufferGetWidth(depthMap)
-        let h = CVPixelBufferGetHeight(depthMap)
-        var cvTex: CVMetalTexture?
-        let status = CVMetalTextureCacheCreateTextureFromImage(
-            kCFAllocatorDefault, cache, depthMap, nil, .r32Float, w, h, 0, &cvTex)
-        guard status == kCVReturnSuccess, let cvTex else { return }
-        CVMetalTextureCacheFlush(cache, 0)
-        let texture = CVMetalTextureGetTexture(cvTex)
-        textureLock.lock()
-        currentCVTexture = cvTex   // keep CVMetalTexture alive
-        pendingDepthTexture = texture
-        textureLock.unlock()
+    @objc private func tick() {
+        guard running, let frame = arView.session.currentFrame, frame.timestamp != lastFrame else { return }
+        let constrained = ProcessInfo.processInfo.isLowPowerModeEnabled || ProcessInfo.processInfo.thermalState == .serious || ProcessInfo.processInfo.thermalState == .critical
+        displayLink?.preferredFrameRateRange = CAFrameRateRange(minimum: 15, maximum: constrained ? 30 : 60, preferred: constrained ? 30 : 60)
+        lastFrame = frame.timestamp
+        if depthMode, let data = frame.smoothedSceneDepth ?? frame.sceneDepth { renderer?.update(data) }
+        if frame.timestamp - lastReadout > 0.1 {
+            lastReadout = frame.timestamp
+            distance = Self.centerDistance(frame.sceneDepth).map { String(format: "%.2f m", $0) } ?? "-- m"
+        }
     }
+    private static func centerDistance(_ data: ARDepthData?) -> Float? {
+        guard let data, let confidence = data.confidenceMap else { return nil }
+        let buffer = data.depthMap
+        CVPixelBufferLockBaseAddress(buffer, .readOnly); CVPixelBufferLockBaseAddress(confidence, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(buffer, .readOnly); CVPixelBufferUnlockBaseAddress(confidence, .readOnly) }
+        guard let values = CVPixelBufferGetBaseAddress(buffer), let mask = CVPixelBufferGetBaseAddress(confidence) else { return nil }
+        let w = CVPixelBufferGetWidth(buffer), h = CVPixelBufferGetHeight(buffer)
+        var samples: [Float] = []
+        for y in max(0, h/2-1)...min(h-1, h/2+1) { for x in max(0, w/2-1)...min(w-1, w/2+1) {
+            let value = values.loadUnaligned(fromByteOffset: y*CVPixelBufferGetBytesPerRow(buffer)+x*4, as: Float.self)
+            let level = mask.load(fromByteOffset: y*CVPixelBufferGetBytesPerRow(confidence)+x, as: UInt8.self)
+            if value.isFinite && value > 0 && level >= 1 { samples.append(value) }
+        } }
+        return samples.isEmpty ? nil : samples.sorted()[samples.count/2]
+    }
+    func snapshot() {
+        guard !saving, let frame = arView.session.currentFrame else { return }
+        do {
+            let snapshot = try DepthSnapshot.capture(frame)
+            saving = true
+            Task {
+                defer { saving = false }
+                do { _ = try await ScanStore.shared.saveDepth(snapshot); status = "Depth snapshot saved to history." }
+                catch { self.error = error.localizedDescription }
+            }
+        } catch { self.error = error.localizedDescription }
+    }
+    func stop() {
+        generation = UUID(); running = false; starting = false
+        displayLink?.invalidate(); displayLink = nil
+        arView.session.delegate = nil; arView.session.pause(); renderer?.clear()
+        lastFrame = -1; lastReadout = -1; distance = "-- m"
+    }
+    func sessionWasInterrupted(_ session: ARSession) { distance = "-- m"; status = "Camera session interrupted." }
+    func session(_ session: ARSession, didFailWithError error: Error) { self.error = error.localizedDescription; stop() }
+}
 
-    // MARK: - MTKViewDelegate
+struct LiveARContainer: UIViewRepresentable {
+    let model: LiveDepthModel
+    func makeUIView(context: Context) -> ARView { model.arView }
+    func updateUIView(_ view: ARView, context: Context) {}
+}
+struct HeatmapContainer: UIViewRepresentable {
+    let renderer: DepthHeatmapRenderer
+    func makeUIView(context: Context) -> MTKView {
+        let view = MTKView(); renderer.attach(view); return view
+    }
+    func updateUIView(_ view: MTKView, context: Context) {}
+    static func dismantleUIView(_ view: MTKView, coordinator: ()) { view.delegate = nil; view.isPaused = true }
+}
 
+// Immutable retain-only owner: GPU completion keeps CoreVideo backing storage alive.
+private final class DepthGPUFrame: @unchecked Sendable {
+    let depth: CVPixelBuffer
+    let confidence: CVPixelBuffer
+    let depthTexture: CVMetalTexture
+    let confidenceTexture: CVMetalTexture
+    init(depth: CVPixelBuffer, confidence: CVPixelBuffer, depthTexture: CVMetalTexture, confidenceTexture: CVMetalTexture) {
+        self.depth = depth; self.confidence = confidence; self.depthTexture = depthTexture; self.confidenceTexture = confidenceTexture
+    }
+}
+
+@MainActor final class DepthHeatmapRenderer: NSObject, MTKViewDelegate {
+    private let device: MTLDevice
+    private let queue: MTLCommandQueue
+    private let pipeline: MTLRenderPipelineState
+    private var cache: CVMetalTextureCache?
+    private weak var view: MTKView?
+    private var frame: DepthGPUFrame?
+    private var inflight = 0
+
+    init(bundle: Bundle = .main) throws {
+        guard let device = MTLCreateSystemDefaultDevice(), let queue = device.makeCommandQueue() else {
+            throw ScanFailure.unsupportedAsset("Metal rendering is unavailable on this device.")
+        }
+        let library = try device.makeDefaultLibrary(bundle: bundle)
+        guard let vertex = library.makeFunction(name: "depth_heatmap_vert"),
+              let fragment = library.makeFunction(name: "depth_heatmap_frag") else {
+            throw ScanFailure.unsupportedAsset("Depth rendering could not load its Metal shaders. Reinstall the app or report this error.")
+        }
+        self.device = device; self.queue = queue
+        let descriptor = MTLRenderPipelineDescriptor()
+        descriptor.vertexFunction = vertex; descriptor.fragmentFunction = fragment
+        descriptor.colorAttachments[0].pixelFormat = .bgra8Unorm
+        pipeline = try device.makeRenderPipelineState(descriptor: descriptor)
+        super.init()
+        guard CVMetalTextureCacheCreate(kCFAllocatorDefault, nil, device, nil, &cache) == kCVReturnSuccess else { throw ScanFailure.invalidGeometry }
+    }
+    func attach(_ view: MTKView) {
+        view.device = device; view.colorPixelFormat = .bgra8Unorm
+        view.delegate = self; view.isPaused = true; view.enableSetNeedsDisplay = false
+        view.framebufferOnly = true; view.backgroundColor = .black; view.isUserInteractionEnabled = false
+        self.view = view
+    }
+    func clear() { frame = nil }
+    func update(_ data: ARDepthData) {
+        guard inflight < 3, let cache, let confidence = data.confidenceMap else { return }
+        let depth = data.depthMap
+        var a: CVMetalTexture?, b: CVMetalTexture?
+        let w = CVPixelBufferGetWidth(depth), h = CVPixelBufferGetHeight(depth)
+        guard CVMetalTextureCacheCreateTextureFromImage(kCFAllocatorDefault, cache, depth, nil, .r32Float, w, h, 0, &a) == kCVReturnSuccess,
+              CVMetalTextureCacheCreateTextureFromImage(kCFAllocatorDefault, cache, confidence, nil, .r8Uint, w, h, 0, &b) == kCVReturnSuccess,
+              let a, let b else { return }
+        frame = DepthGPUFrame(depth: depth, confidence: confidence, depthTexture: a, confidenceTexture: b)
+        view?.draw()
+    }
     func draw(in view: MTKView) {
-        textureLock.lock()
-        let texture = pendingDepthTexture
-        textureLock.unlock()
-
-        guard let texture,
-              let pipeline = pipelineState,
-              let descriptor = view.currentRenderPassDescriptor,
-              let drawable = view.currentDrawable,
-              let buffer = commandQueue.makeCommandBuffer() else { return }
-
-        descriptor.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 0)
-        descriptor.colorAttachments[0].loadAction = .clear
-
-        guard let encoder = buffer.makeRenderCommandEncoder(descriptor: descriptor) else { return }
+        guard inflight < 3, let frame, let depth = CVMetalTextureGetTexture(frame.depthTexture), let confidence = CVMetalTextureGetTexture(frame.confidenceTexture),
+              let pass = view.currentRenderPassDescriptor, let drawable = view.currentDrawable, let command = queue.makeCommandBuffer(),
+              let encoder = command.makeRenderCommandEncoder(descriptor: pass) else { return }
+        var maxDepth: Float = 5
         encoder.setRenderPipelineState(pipeline)
-        encoder.setFragmentTexture(texture, index: 0)
-        encoder.setFragmentBytes(&maxDepth, length: MemoryLayout<Float>.size, index: 0)
-        encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
-        encoder.endEncoding()
-
-        buffer.present(drawable)
-        buffer.commit()
+        encoder.setFragmentTexture(depth, index: 0); encoder.setFragmentTexture(confidence, index: 1)
+        encoder.setFragmentBytes(&maxDepth, length: 4, index: 0)
+        encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4); encoder.endEncoding()
+        inflight += 1
+        command.addCompletedHandler { [frame, weak self] _ in
+            withExtendedLifetime(frame) {}
+            Task { @MainActor in self?.inflight -= 1 }
+        }
+        command.present(drawable); command.commit()
     }
-
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
 }

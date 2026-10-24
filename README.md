@@ -1,74 +1,136 @@
 # TruDepth
 
-A native iOS app for real-time LiDAR depth visualization, 3D room scanning, and object measurement, built with ARKit, RealityKit, RoomPlan, Metal, ModelIO, and SwiftUI.
+An offline-first iPhone scanning utility built with SwiftUI, ARKit, RoomPlan,
+RealityKit, Metal, and Model I/O. Requires **iOS 17+**. Capture capabilities are
+detected at runtime rather than inferred from a device name, retaining support
+for iPhone 14 Pro Max while using current frameworks on iPhone 18 Pro.
 
-## Features
+## Capture
 
-### Live Depth
-- Real-time LiDAR mesh reconstruction rendered via ARKit + RealityKit
-- Two visualization modes:
-  - **classify** — semantic surface coloring (walls, floors, doors, windows)
-  - **depth** — GPU-accelerated jet-colormap heatmap on black background via Metal
-- Center-point distance readout sampled from the raw `sceneDepth` pixel buffer at 150ms intervals
-- Metal heatmap uses a zero-copy `CVMetalTextureCache` path — no CPU roundtrips for the depth overlay
+- **Live depth:** classification or a confidence-filtered Metal depth heatmap,
+  center distance, and explicit depth snapshots. A 180-degree preview correction
+  aligns the display; snapshots use the matching portrait transform.
+- **Quick item scan:** keep the object stationary and walk around it. Tap its
+  horizontal supporting surface to place a crop box. Adjust width, height, depth,
+  and rotation, or tap again to reposition. Measurement and export use exactly the
+  same crop-local triangles, in meters. Completion requires valid geometry,
+  normal tracking, and four distinct 45-degree camera-view sectors.
+- **Detailed item scan:** guided automatic ObjectCapture photography, quality
+  feedback, multiple passes/flip guidance, then on-device PhotogrammetrySession
+  reconstruction with object masking and the iOS-supported `.reduced` detail.
+  Keep the app open during reconstruction. Cancellation retains photographs and
+  checkpoints for retry from history.
+- **Connected rooms:** finish and save each room while retaining one AR session;
+  add connected rooms and combine them using StructureBuilder. Loss of the
+  coordinate frame ends further capture for that project. Retained rooms can be
+  finalized after relaunch; adding rooms then requires a new project.
+- **Depth snapshots:** capture the current AR frame, including RoomPlan's own AR
+  session. Retain Float32 depth, UInt8 confidence, camera image, intrinsics, pose,
+  and timestamp. Generate a PNG heatmap and calibrated, colored binary PLY cloud.
 
-### Scan Room
-- Full 3D room capture via the RoomPlan framework, including walls, doors, windows, and furniture
-- Real-time wall detection counter and progress indicator during scanning
-- **Depth snapshot**: tap the capture button during a scan to save a jet-colormap PNG of the raw LiDAR depth data alongside the USDZ export
-- Exports scans as USDZ — viewable in AR via QuickLook or shared directly from the app
+Crop-boundary warnings are a heuristic, **not verified background removal**.
+LiDAR is suited to approximate shape and dimensions, not small-detail metrology.
+Room scans are measured layouts, not photographic environment meshes.
 
-### Scan Item
-- Object scanning using ARWorldTracking + LiDAR mesh reconstruction
-- Keep the phone still and rotate the object — the app builds a 3D mesh in real time
-- Live bounding box readout shows width × height × depth in centimetres as the mesh grows
-- Exports the captured mesh as USDZ via ModelIO for sharing or AR viewing
+## Local Library and Files
 
-### Scan History
-- Persistent scan library stored in the app's Documents directory (`TruDepthScans/`)
-- Tracks both room scans and object scans with distinct icons
-- Scan records keyed by filename for stability across reinstalls
-- Optional depth PNG stored alongside room scan USDZ records
-- Swipe to delete or share any previous scan
-- 3D model viewer with full-bleed SceneKit rendering for any saved scan
+Projects live in `Application Support/TruDepth/Scans/<UUID>/`:
 
-## Architecture
+```text
+manifest.json          Versioned identity, dates, type, state and relative paths
+Sources/               Photos/checkpoints, cropped mesh, rooms, or raw depth
+Assets/<revision>/     Committed model and thumbnail (depth PNG/PLY for snapshots)
+```
 
-The app is structured across four source files plus one Metal shader:
+`ScanRepository` serializes file operations. Asset revisions are written before
+atomically replacing the manifest; only then does the main-actor `ScanStore`
+publish success. Interrupted drafts remain in history. Recovery reads project
+manifests rather than depending on a separately synchronized index.
 
-| File | Responsibility |
-|------|---------------|
-| `AppDelegate.swift` | App entry point, tab navigation, `HomeView`, `ScanHistoryView`, design system tokens |
-| `ViewController.swift` | `RoomScanView` (RoomPlan session), `ModelViewerView` (SceneKit + QuickLook), `ScanStore`, `ScanRecord` |
-| `SceneDelegate.swift` | `LiveMeshView` (ARKit session + mesh visualization), `DepthHeatmapRenderer` (Metal pipeline) |
-| `ObjectScanView.swift` | `ObjectScanView` + `ObjectScanViewModel` (ARWorldTracking + LiDAR mesh + MDLAsset USDZ export) |
-| `DepthHeatmap.metal` | Full-screen quad vertex shader + jet-colormap fragment shader for the depth heatmap |
+Legacy `Documents/TruDepthScans` scans retain IDs and dates. Migration is
+repeatable, verifies copies before removing duplicate legacy assets, keeps the
+old index for diagnosis, and preserves missing-file records as damaged entries.
+An unreadable legacy index is retained and reported without hiding newer scans.
 
-### Key Design Decisions
+Processing is on-device and successfully saved source data is retained until
+explicitly removed. If RoomPlan refuses to serialize a raw capture, the app
+still saves the processed room when possible and records the raw-archive
+limitation in source details. That room can be finalized and exported, but its
+unavailable raw sensor archive cannot be reprocessed. The notice remains visible
+in history and accompanies source-folder exports; it is not a failed model save.
+Completed models and sources remain eligible for normal system backups. Removing
+the app deletes its local container unless restored from a backup; export
+important work separately.
 
-- **`ScanRecord` stores filename, not URL** — the Documents directory path changes across reinstalls; the URL is recomputed at access time.
-- **`ScanRecord` has a `scanType` field** with backward-compatible Codable decoding (`decodeIfPresent`, defaults to `.room` for old records).
-- **Phase enum has no associated values** — `CapturedRoom` is not `Equatable`, so associated values broke phase comparison. Room data and URLs are separate `@Published` properties on the view model.
-- **Metal heatmap is a separate `MTKView` overlay** — keeps the ARView render loop untouched; in depth mode a `Color.black` layer is inserted between the ARView and the MTKView so jet-color values pop against a dark background.
-- **Depth snapshot uses a post-scan ARSession** — RoomPlan's session does not expose its underlying ARSession; after `RoomCaptureSession.stop()` a brief standalone `ARSession` with `.sceneDepth` semantics captures one frame.
-- **Object USDZ export uses ModelIO** — `ARMeshAnchor` vertex positions are transformed to world space and packed into `MDLMesh` / `MDLAsset`, then exported via `MDLAsset.export(to:)`.
-- **`CVPixelBuffer` cross-thread transfer** — wrapped in `UncheckedSendable` with explicit `CVPixelBufferLockBaseAddress`/`Unlock` ownership.
+History supports names, thumbnails, capture types, dimensions, device/OS,
+timestamps, processing status, storage totals, rename, delete, processing retry,
+and explicit source removal. Removing sources preserves completed USDZ models
+and their embedded textures. It disables rebuilding and individual-room export.
 
-## Requirements
+**Export to Files** always exports a copy through the system document picker.
+Cancelling an export does not move or delete the stored original.
 
-- Xcode 15 or later
-- iOS 14.0 or later
-- LiDAR-equipped device (iPhone 12 Pro or later, iPad Pro 2020 or later)
-  - All core features require LiDAR; the app degrades gracefully on unsupported devices
+| Format | Contents |
+| --- | --- |
+| GLB | Self-contained static glTF 2.0 mesh with embedded textures and materials |
+| OBJ folder | OBJ, MTL, texture files; keep the folder together |
+| USDZ | Original packaged model for Quick Look/AR |
+| PLY | Depth points with RGB, in ARKit world coordinates and meters |
+| PNG | Depth heatmap or model preview |
+| Source folder | Retained reconstruction inputs or raw depth with calibration |
 
-## Usage
+Connected-room projects offer both combined and individual-room model exports.
+Centimeter/inch display settings do not alter meter-based export geometry. OBJ
+PBR material interpretation varies by receiving software; GLB is preferred for
+portable PBR appearance. Export working copies live separately in Caches and are
+removed after dismissal, with stale jobs cleaned on a later launch.
 
-1. **Home** — overview of features and recent scans. Tap any feature card to begin.
-2. **live depth** — enter real-time LiDAR visualization. Use the segmented control to switch between classify and depth modes. The distance badge shows center-frame depth in real time.
-3. **scan room** — walk around a room while RoomPlan builds a 3D model. Tap the aperture button to save a raw depth snapshot. Tap **done** when coverage is complete.
-4. **scan item** — place an object on a flat surface, keep the phone still, and slowly rotate the object. The bounding box readout updates live. Tap **done** to export.
-5. **History** tab — full list of saved room and object scans. Tap any row to open the 3D model viewer. Swipe left to delete, swipe right to share.
+## Interaction and Performance
 
-## Contributing
+All screens offer **Main Menu**. Camera denial and unsupported hardware show
+actionable errors instead of starting capture. Sessions and processing tasks are
+cancelled when leaving their screens; recoverable source data is retained.
 
-PRs and issues are welcome. For significant changes, open an issue first to discuss the approach.
+The RealityKit viewer fits model bounds. Drag to orbit, two-finger drag to pan,
+and pinch to zoom. Quick Look remains available for AR placement.
+
+Depth rendering uses a display-linked, latest-frame path capped at 60 fps, three
+in-flight GPU frames, and retained zero-copy CoreVideo textures. Hidden rendering
+is paused. Low Power Mode and thermal pressure reduce depth and mesh-update work;
+camera and reconstruction acceleration remain framework-managed. Active capture
+and processing prevent auto-lock while the app is in the foreground.
+The app opts into [ProMotion timing](https://developer.apple.com/documentation/quartzcore/optimizing-iphone-and-ipad-apps-to-support-promotion-displays);
+RealityKit and the system choose the actual viewer refresh rate. Sustained frame
+rates are not guaranteed and require device profiling.
+
+Configure **TruDepth > Start Scan** in Shortcuts or the Action button settings to
+open the item-capture chooser. The shortcut does not start recording automatically.
+
+## Development and Verification
+
+Use Xcode with a Swift 6 compiler and the matching Metal toolchain. Project build
+settings enable Swift 6 and complete strict-concurrency checking. Capture needs a
+physical supported iPhone; the simulator supports library and navigation checks.
+
+```sh
+xcodebuild -downloadComponent MetalToolchain
+xcodebuild -project TruDepth.xcodeproj -scheme TruDepth \
+  -destination 'generic/platform=iOS' build
+xcodebuild -project TruDepth.xcodeproj -scheme TruDepth \
+  -destination 'generic/platform=iOS Simulator' build CODE_SIGNING_ALLOWED=NO
+swift test --scratch-path /private/tmp/TruDepth-core-build
+```
+
+Core tests generate export fixtures in `/private/tmp/TruDepth-fixtures`. Optional
+independent checks use temporary development-only packages:
+
+```sh
+npm install --prefix /private/tmp/TruDepth-validation gltf-validator three
+node Scripts/validate-exports.mjs
+```
+
+The app itself has no third-party package dependencies or cloud processing.
+Model I/O handles mesh ingestion and OBJ writing; SceneKit is used only as
+Apple's native USDZ packager because Model I/O cannot directly write USDZ.
+Rendering and interaction use RealityKit. See [validation notes](docs/VALIDATION.md)
+for results and the physical-device release checklist.
